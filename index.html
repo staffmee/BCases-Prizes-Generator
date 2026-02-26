@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BCases Prizes Generator</title>
+    <title>BCases Prizes Generator PRO</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
@@ -15,15 +15,14 @@
         .cmd-list { min-height: 90px; font-family: 'Courier New', Courier, monospace; font-size: 0.95em; }
         .preview { background: #1e293b; color: #e2e8f0; padding: 20px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; max-height: 500px; overflow-y: auto; }
         .stats { background: #d1fae5; padding: 10px; border-radius: 6px; margin-top: 12px; font-weight: 500; }
-        .invalid { border-color: #dc3545 !important; box-shadow: 0 0 0 0.25rem rgba(220,53,69,.25); }
         .file-input { display: none; }
     </style>
 </head>
 <body>
     <div class="container my-5">
         <div class="text-center mb-5">
-            <h1><i class="fas fa-gift me-3 text-primary"></i>BCases Prizes Generator</h1>
-            <p class="text-muted lead">Создание и редактирование prizes.yml с поддержкой загрузки существующего файла @staffmee</p>
+            <h1><i class="fas fa-rocket me-3 text-primary"></i>BCases Editor</h1>
+            <p class="text-muted lead">Данные сохраняются автоматически в браузере</p>
         </div>
 
         <div class="d-flex flex-wrap gap-3 justify-content-center mb-4">
@@ -31,20 +30,22 @@
                 <i class="fas fa-plus me-2"></i>Добавить кейс
             </button>
             <label class="btn btn-outline-success btn-lg mb-0" for="load-yaml">
-                <i class="fas fa-upload me-2"></i>Загрузить prizes.yml
+                <i class="fas fa-upload me-2"></i>Загрузить файл
             </label>
             <input type="file" id="load-yaml" class="file-input" accept=".yml,.yaml" onchange="loadYaml(event)">
-            <button class="btn btn-success btn-lg" onclick="generateYaml()">
-                <i class="fas fa-download me-2"></i>Скачать prizes.yml
+            <button class="btn btn-success btn-lg" onclick="downloadYaml()">
+                <i class="fas fa-download me-2"></i>Скачать .yml
             </button>
             <button class="btn btn-info btn-lg" onclick="showPreview()">
                 <i class="fas fa-eye me-2"></i>Предпросмотр
+            </button>
+            <button class="btn btn-danger btn-lg" onclick="clearAllData()">
+                <i class="fas fa-trash-alt"></i> Очистить всё
             </button>
         </div>
 
         <div id="cases-container"></div>
 
-        <!-- Модалка предпросмотра -->
         <div class="modal fade" id="preview-modal" tabindex="-1">
             <div class="modal-dialog modal-xl modal-dialog-scrollable">
                 <div class="modal-content">
@@ -65,477 +66,255 @@
     </div>
 
     <datalist id="materials-list">
-        <option value="stone"><option value="cobblestone"><option value="dirt"><option value="oak_planks">
-        <option value="iron_ingot"><option value="gold_ingot"><option value="diamond"><option value="emerald">
-        <option value="netherite_ingot"><option value="diamond_sword"><option value="netherite_sword">
-        <option value="diamond_pickaxe"><option value="netherite_pickaxe"><option value="totem_of_undying">
-        <option value="elytra"><option value="nether_star"><option value="beacon"><option value="enchanted_book">
-        <!-- можно добавить ещё много -->
+        <option value="stone"><option value="diamond"><option value="netherite_ingot"><option value="elytra">
     </datalist>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        let cases = {}; // {caseId: [prizes]}
-        let nextCaseId = 1;
-        const STORAGE_KEY = 'bcases_generator_data';
+        let cases = {}; 
+        const STORAGE_KEY = 'bcases_autosave';
 
         const cmdPlaceholders = {
-            '[MESSAGE]': '&fВы выиграли: &bАлмаз!',
-            '[BROADCAST]': '&6%player_name% &eвыиграл &bАлмаз!',
-            '[CONSOLE]': 'minecraft:give %player_name% diamond 1',
-            '[GIVE]': 'minecraft:diamond_sword{Enchantments:[{id:"minecraft:sharpness",lvl:5}]} 1',
-            '[TITLE]': '"&6Победа!\\n&bПриз получен" 10 70 20',
-            '[ACTION_BAR]': '&a✓ Приз выдан!',
-            '[PLAY]': '$random default',
+            '[MESSAGE]': '&fВы выиграли приз!',
+            '[BROADCAST]': '&6%player% выиграл!',
+            '[CONSOLE]': 'give %player% diamond 1',
+            '[GIVE]': 'diamond_sword 1',
             '[TAKE_KEY]': 'default'
         };
 
-        function addCase(caseName = null, internalId = null) {
-            const container = document.getElementById('cases-container');
-            const caseId = internalId || `case_${nextCaseId++}`;
-            cases[caseId] = cases[caseId] || [];
+        // --- CORE FUNCTIONS ---
 
-            const displayName = caseName || caseId;
-            const caseHtml = `
-                <div class="case-section" data-case="${caseId}">
+        function saveToLocalStorage() {
+            const data = collectData();
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        }
+
+        function loadFromLocalStorage() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    renderAll(parsed);
+                } catch (e) { console.error("Ошибка загрузки автосохранения", e); }
+            } else {
+                addCase('default');
+            }
+        }
+
+        function renderAll(data) {
+            document.getElementById('cases-container').innerHTML = '';
+            cases = {};
+            if (data.prizes) {
+                Object.entries(data.prizes).forEach(([name, prizes]) => {
+                    const caseId = addCase(name, false);
+                    prizes.forEach(p => addPrize(caseId, p, false));
+                });
+            }
+        }
+
+        function addCase(caseName = null, shouldSave = true) {
+            const container = document.getElementById('cases-container');
+            const id = caseName || `case_${Date.now()}`;
+            cases[id] = [];
+
+            const html = `
+                <div class="case-section" data-case="${id}">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h3><i class="fas fa-box me-2 text-primary"></i>Кейс: 
-                            <input type="text" class="form-control d-inline-block w-auto ms-2" 
-                                   id="case-name-${caseId}" value="${displayName}" 
-                                   onchange="updateCaseId('${caseId}', this.value)">
+                            <input type="text" class="form-control d-inline-block w-auto ms-2 case-name-input" 
+                                   value="${id}" onchange="updateCaseId('${id}', this.value)">
                         </h3>
-                        <button class="btn btn-sm btn-outline-danger" onclick="removeCase('${caseId}')">
+                        <button class="btn btn-sm btn-outline-danger" onclick="removeCase('${id}')">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
-                    <div id="prizes-${caseId}"></div>
-                    <button class="btn btn-outline-primary mt-2" onclick="addPrize('${caseId}')">
+                    <div class="prizes-list" id="prizes-${id}"></div>
+                    <button class="btn btn-outline-primary mt-2" onclick="addPrize('${id}')">
                         <i class="fas fa-plus me-1"></i>Добавить приз
                     </button>
-                    <div class="stats" id="stats-${caseId}"></div>
+                    <div class="stats" id="stats-${id}"></div>
                 </div>
             `;
-            container.insertAdjacentHTML('beforeend', caseHtml);
-            updateStats(caseId);
-            return caseId;
+            container.insertAdjacentHTML('beforeend', html);
+            updateStats(id);
+            if(shouldSave) saveToLocalStorage();
+            return id;
         }
 
-        function updateCaseId(oldId, newIdRaw) {
-            const newId = newIdRaw.trim();
-            if (!newId || cases[newId]) {
-                alert('Такой ID кейса уже существует или пустой!');
-                const oldInput = document.getElementById(`case-name-${oldId}`);
-                if (oldInput) oldInput.value = oldId;
+        function updateCaseId(oldId, newId) {
+            newId = newId.trim();
+            if (!newId || (cases[newId] && oldId !== newId)) {
+                alert('ID занят или пуст!');
+                document.querySelector(`[data-case="${oldId}"] .case-name-input`).value = oldId;
                 return;
             }
+            
+            // Переносим данные в объекте
             cases[newId] = cases[oldId];
             delete cases[oldId];
+
+            // Обновляем DOM и атрибуты, чтобы функции удаления/добавления не ломались
             const section = document.querySelector(`[data-case="${oldId}"]`);
-            if (section) section.dataset.case = newId;
-            const prizesEl = document.getElementById(`prizes-${oldId}`);
-            if (prizesEl) prizesEl.id = `prizes-${newId}`;
-            const statsEl = document.getElementById(`stats-${oldId}`);
-            if (statsEl) statsEl.id = `stats-${newId}`;
-            const nameInput = document.getElementById(`case-name-${oldId}`);
-            if (nameInput) {
-                nameInput.id = `case-name-${newId}`;
-                nameInput.value = newId;  // Обновляем значение инпута
-            }
+            section.dataset.case = newId;
+            section.querySelector(`#prizes-${oldId}`).id = `prizes-${newId}`;
+            section.querySelector(`#stats-${oldId}`).id = `stats-${newId}`;
+            
+            // Перезаписываем onclick события у кнопок внутри этой секции
+            const buttons = section.querySelectorAll('button[onclick]');
+            buttons.forEach(btn => {
+                let attr = btn.getAttribute('onclick');
+                btn.setAttribute('onclick', attr.replace(new RegExp(`'${oldId}'`, 'g'), `'${newId}'`));
+            });
+
+            // Перезаписываем oninput у инпутов
+            const inputs = section.querySelectorAll('[oninput], [onchange]');
+            inputs.forEach(el => {
+                ['oninput', 'onchange'].forEach(evt => {
+                    let attr = el.getAttribute(evt);
+                    if(attr) el.setAttribute(evt, attr.replace(new RegExp(`'${oldId}'`, 'g'), `'${newId}'`));
+                });
+            });
+
             updateStats(newId);
-            saveToStorage();  // Сохраняем изменения
+            saveToLocalStorage();
         }
 
-        function removeCase(caseId) {
-            if (!confirm('Удалить кейс и все его призы?')) return;
-            delete cases[caseId];
-            const section = document.querySelector(`[data-case="${caseId}"]`);
-            if (section) section.remove();
-            saveToStorage();
-        }
-
-        function addPrize(caseId, prizeData = {}) {
-            const prizesContainer = document.getElementById(`prizes-${caseId}`);
-            if (!prizesContainer) return;
-            const prizeId = `prize_${Date.now()}_${Math.random().toString(36).slice(2,10)}`;
+        function addPrize(caseId, data = {}, shouldSave = true) {
+            const container = document.getElementById(`prizes-${caseId}`);
+            const pId = `p${Date.now()}${Math.floor(Math.random()*1000)}`;
+            
             const prize = {
-                _id: prizeId,
-                chance: prizeData.chance || 100,
-                enchanted: !!prizeData.enchanted,
-                material: prizeData.material || 'stone',
-                display_name: prizeData.display_name || '&7Приз',
-                give_commands: prizeData.give_commands || [],
-                items: prizeData.items || []
+                _id: pId,
+                chance: data.chance ?? 100,
+                enchanted: !!data.enchanted,
+                material: data.material || 'stone',
+                display_name: data.display_name || '&7Приз',
+                give_commands: data.give_commands || [],
+                items: data.items || []
             };
             cases[caseId].push(prize);
 
-            const cmdsText = prize.give_commands.join('\n');
-            const prizeHtml = `
-                <div class="prize-item" data-prize="${prizeId}">
-                    <div class="d-flex justify-content-between align-items-start mb-3">
+            const html = `
+                <div class="prize-item" data-prize="${pId}">
+                    <div class="d-flex justify-content-between mb-3">
                         <h5><i class="fas fa-gift me-2 text-success"></i>Приз</h5>
-                        <button class="btn btn-sm btn-outline-danger" onclick="removePrize('${caseId}', '${prizeId}')">
+                        <button class="btn btn-sm btn-outline-danger" onclick="removePrize('${caseId}', '${pId}')">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
                     <div class="row g-3">
-                        <div class="col-md-3">
-                            <label class="form-label">Шанс</label>
-                            <input type="number" class="form-control" min="0.01" step="0.01" value="${prize.chance}" 
-                                   oninput="updatePrize('${caseId}', '${prizeId}', 'chance', this.value)">
-                        </div>
                         <div class="col-md-2">
-                            <label class="form-label">Зачаровать</label>
-                            <div class="form-check mt-2">
-                                <input class="form-check-input" type="checkbox" ${prize.enchanted ? 'checked' : ''} 
-                                       oninput="updatePrize('${caseId}', '${prizeId}', 'enchanted', this.checked)">
-                            </div>
+                            <label>Шанс</label>
+                            <input type="number" class="form-control" value="${prize.chance}" oninput="updatePrize('${caseId}', '${pId}', 'chance', this.value)">
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Материал</label>
-                            <input type="text" class="form-control" list="materials-list" value="${prize.material}" 
-                                   oninput="updatePrize('${caseId}', '${prizeId}', 'material', this.value)">
+                        <div class="col-md-2 text-center">
+                            <label>Glow</label><br>
+                            <input type="checkbox" class="form-check-input" ${prize.enchanted?'checked':''} oninput="updatePrize('${caseId}', '${pId}', 'enchanted', this.checked)">
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Display name</label>
-                            <input type="text" class="form-control" value="${prize.display_name}" 
-                                   oninput="updatePrize('${caseId}', '${prizeId}', 'display_name', this.value)">
+                            <label>ID Материала</label>
+                            <input type="text" class="form-control" list="materials-list" value="${prize.material}" oninput="updatePrize('${caseId}', '${pId}', 'material', this.value)">
+                        </div>
+                        <div class="col-md-4">
+                            <label>Имя в меню</label>
+                            <input type="text" class="form-control" value="${prize.display_name}" oninput="updatePrize('${caseId}', '${pId}', 'display_name', this.value)">
                         </div>
                     </div>
                     <div class="mt-3">
-                        <label class="form-label">Команды (по одной на строку)</label>
-                        <textarea class="form-control cmd-list" oninput="updateCommands('${caseId}', '${prizeId}', this.value)">${cmdsText}</textarea>
-                    </div>
-                    <div class="row g-2 mt-2">
-                        <div class="col-4">
-                            <select class="form-select form-select-sm" id="cmd-select-${prizeId}">
-                                <option value="[MESSAGE]">[MESSAGE]</option>
-                                <option value="[BROADCAST]">[BROADCAST]</option>
-                                <option value="[CONSOLE]">[CONSOLE]</option>
-                                <option value="[GIVE]">[GIVE]</option>
-                                <option value="[TITLE]">[TITLE]</option>
-                                <option value="[ACTION_BAR]">[ACTION_BAR]</option>
-                                <option value="[PLAY]">[PLAY]</option>
-                                <option value="[TAKE_KEY]">[TAKE_KEY]</option>
-                            </select>
-                        </div>
-                        <div class="col-6">
-                            <input type="text" class="form-control form-control-sm" id="cmd-arg-${prizeId}" placeholder="аргументы">
-                        </div>
-                        <div class="col-2">
-                            <button class="btn btn-sm btn-primary w-100" onclick="insertCommand('${caseId}', '${prizeId}')">Добавить</button>
-                        </div>
-                    </div>
-                    <button class="btn btn-outline-info mt-3 w-100" onclick="toggleSubprizes('${caseId}', '${prizeId}')">
-                        <i class="fas fa-layer-group me-1"></i><span id="subprize-btn-${prizeId}">Подпризы (items)</span>
-                    </button>
-                    <div id="subprizes-${prizeId}" style="display:none;" class="mt-3">
-                        <button class="btn btn-sm btn-outline-primary mb-2" onclick="addSubprize('${caseId}', '${prizeId}')">
-                            <i class="fas fa-plus me-1"></i>Добавить подприз
-                        </button>
-                        <div id="subprizes-container-${prizeId}"></div>
+                        <label>Команды</label>
+                        <textarea class="form-control cmd-list" oninput="updateCmds('${caseId}', '${pId}', this.value)">${prize.give_commands.join('\n')}</textarea>
                     </div>
                 </div>
             `;
-            prizesContainer.insertAdjacentHTML('beforeend', prizeHtml);
+            container.insertAdjacentHTML('beforeend', html);
+            updateStats(caseId);
+            if(shouldSave) saveToLocalStorage();
+        }
 
-            if (prize.items.length > 0) {
-                const subContainer = document.getElementById(`subprizes-${prizeId}`);
-                if (subContainer) subContainer.style.display = 'block';
-                const btn = document.getElementById(`subprize-btn-${prizeId}`);
-                if (btn) btn.innerHTML = '<i class="fas fa-minus me-1"></i>Скрыть подпризы';
-                prize.items.forEach(sub => addSubprize(caseId, prizeId, sub));
+        function updatePrize(caseId, pId, key, val) {
+            const p = cases[caseId].find(x => x._id === pId);
+            if(p) {
+                p[key] = (key === 'chance') ? parseFloat(val) : val;
+                if(key === 'chance') updateStats(caseId);
+                saveToLocalStorage();
             }
-
-            updatePlaceholder(prizeId);
-            const selectEl = document.getElementById(`cmd-select-${prizeId}`);
-            if (selectEl) selectEl.addEventListener('change', () => updatePlaceholder(prizeId));
-            updateStats(caseId);
-            saveToStorage();
         }
 
-        function addSubprize(caseId, prizeId, subData = {}) {
-            const parent = cases[caseId]?.find(p => p._id === prizeId);
-            if (!parent) return;
-            const index = parent.items.length;
-            const subId = `sub_${prizeId}_${index}`;
-            const sub = {
-                _id: subId,
-                chance: subData.chance || 50,
-                enchanted: !!subData.enchanted,
-                material: subData.material || 'diamond',
-                display_name: subData.display_name || '&bПодприз',
-                give_commands: subData.give_commands || []
-            };
-            parent.items.push(sub);
-
-            const cmdsText = sub.give_commands.join('\n');
-            const container = document.getElementById(`subprizes-container-${prizeId}`);
-            if (!container) return;
-            const subHtml = `
-                <div class="subprize-item" data-subprize="${subId}">
-                    <div class="d-flex justify-content-between mb-2">
-                        <strong><i class="fas fa-gift me-1 text-info"></i>Подприз</strong>
-                        <button class="btn btn-sm btn-outline-danger" onclick="removeSubprize('${caseId}', '${prizeId}', '${subId}')">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                    <div class="row g-2">
-                        <div class="col-3">
-                            <input type="number" class="form-control form-control-sm" value="${sub.chance}" min="0.01" step="0.01" 
-                                   oninput="updateSubprize('${caseId}', '${prizeId}', '${subId}', 'chance', this.value)">
-                        </div>
-                        <div class="col-2">
-                            <div class="form-check mt-1">
-                                <input class="form-check-input" type="checkbox" ${sub.enchanted ? 'checked' : ''} 
-                                       oninput="updateSubprize('${caseId}', '${prizeId}', '${subId}', 'enchanted', this.checked)">
-                            </div>
-                        </div>
-                        <div class="col-3">
-                            <input type="text" class="form-control form-control-sm" list="materials-list" value="${sub.material}" 
-                                   oninput="updateSubprize('${caseId}', '${prizeId}', '${subId}', 'material', this.value)">
-                        </div>
-                        <div class="col-4">
-                            <input type="text" class="form-control form-control-sm" value="${sub.display_name}" 
-                                   oninput="updateSubprize('${caseId}', '${prizeId}', '${subId}', 'display_name', this.value)">
-                        </div>
-                    </div>
-                    <textarea class="form-control form-control-sm mt-2 cmd-list" rows="3" 
-                              oninput="updateSubCommands('${caseId}', '${prizeId}', '${subId}', this.value)">${cmdsText}</textarea>
-                </div>
-            `;
-            container.insertAdjacentHTML('beforeend', subHtml);
-            updateStats(caseId);
-            saveToStorage();
-        }
-
-        function updatePrize(caseId, prizeId, key, value) {
-            const prize = cases[caseId]?.find(p => p._id === prizeId);
-            if (!prize) return;
-            if (key === 'chance') value = parseFloat(value) || 100;
-            if (key === 'enchanted') value = !!value;
-            prize[key] = value;
-            updateStats(caseId);
-            saveToStorage();
-        }
-
-        function updateCommands(caseId, prizeId, value) {
-            const prize = cases[caseId]?.find(p => p._id === prizeId);
-            if (prize) prize.give_commands = value.split('\n').map(c => c.trim()).filter(Boolean);
-            saveToStorage();
-        }
-
-        function updateSubprize(caseId, prizeId, subId, key, value) {
-            const parent = cases[caseId]?.find(p => p._id === prizeId);
-            if (!parent) return;
-            const sub = parent.items.find(s => s._id === subId);
-            if (!sub) return;
-            if (key === 'chance') value = parseFloat(value) || 50;
-            if (key === 'enchanted') value = !!value;
-            sub[key] = value;
-            updateStats(caseId);
-            saveToStorage();
-        }
-
-        function updateSubCommands(caseId, prizeId, subId, value) {
-            const parent = cases[caseId]?.find(p => p._id === prizeId);
-            if (!parent) return;
-            const sub = parent.items.find(s => s._id === subId);
-            if (sub) sub.give_commands = value.split('\n').map(c => c.trim()).filter(Boolean);
-            saveToStorage();
-        }
-
-        function insertCommand(caseId, prizeId) {
-            const select = document.getElementById(`cmd-select-${prizeId}`);
-            if (!select) return;
-            const arg = document.getElementById(`cmd-arg-${prizeId}`)?.value.trim() || '';
-            let cmd = select.value;
-            if (arg) cmd += ' ' + arg;
-            const textarea = document.querySelector(`[data-prize="${prizeId}"] textarea`);
-            if (textarea) {
-                textarea.value = textarea.value ? textarea.value + '\n' + cmd : cmd;
-                updateCommands(caseId, prizeId, textarea.value);
+        function updateCmds(caseId, pId, val) {
+            const p = cases[caseId].find(x => x._id === pId);
+            if(p) {
+                p.give_commands = val.split('\n').map(c => c.trim()).filter(c => c);
+                saveToLocalStorage();
             }
-            const argInput = document.getElementById(`cmd-arg-${prizeId}`);
-            if (argInput) argInput.value = '';
-            saveToStorage();
         }
 
-        function updatePlaceholder(prizeId) {
-            const select = document.getElementById(`cmd-select-${prizeId}`);
-            if (!select) return;
-            const input = document.getElementById(`cmd-arg-${prizeId}`);
-            if (input) input.placeholder = cmdPlaceholders[select.value] || 'аргументы команды';
+        function removeCase(id) {
+            if(!confirm('Удалить кейс?')) return;
+            delete cases[id];
+            document.querySelector(`[data-case="${id}"]`).remove();
+            saveToLocalStorage();
         }
 
-        function toggleSubprizes(caseId, prizeId) {
-            const el = document.getElementById(`subprizes-${prizeId}`);
-            if (!el) return;
-            const btn = document.getElementById(`subprize-btn-${prizeId}`);
-            if (!btn) return;
-            const show = el.style.display !== 'block';
-            el.style.display = show ? 'block' : 'none';
-            btn.innerHTML = show 
-                ? '<i class="fas fa-minus me-1"></i>Скрыть подпризы' 
-                : '<i class="fas fa-layer-group me-1"></i>Подпризы (items)';
-            saveToStorage();
-        }
-
-        function removePrize(caseId, prizeId) {
-            if (!cases[caseId]) return;
-            cases[caseId] = cases[caseId].filter(p => p._id !== prizeId);
-            const prizeEl = document.querySelector(`[data-prize="${prizeId}"]`);
-            if (prizeEl) prizeEl.remove();
+        function removePrize(caseId, pId) {
+            cases[caseId] = cases[caseId].filter(x => x._id !== pId);
+            document.querySelector(`[data-prize="${pId}"]`).remove();
             updateStats(caseId);
-            saveToStorage();
-        }
-
-        function removeSubprize(caseId, prizeId, subId) {
-            const parent = cases[caseId]?.find(p => p._id === prizeId);
-            if (parent) parent.items = parent.items.filter(s => s._id !== subId);
-            const subEl = document.querySelector(`[data-subprize="${subId}"]`);
-            if (subEl) subEl.remove();
-            updateStats(caseId);
-            saveToStorage();
+            saveToLocalStorage();
         }
 
         function updateStats(caseId) {
-            if (!cases[caseId]) return;
-            const total = cases[caseId].reduce((sum, p) => sum + (parseFloat(p.chance) || 0), 0);
-            const statsEl = document.getElementById(`stats-${caseId}`);
-            if (statsEl) statsEl.innerHTML = `Сумма шансов: <strong>${total.toFixed(2)}</strong>`;
+            const total = cases[caseId].reduce((s, p) => s + (p.chance || 0), 0);
+            document.getElementById(`stats-${caseId}`).innerHTML = `Сумма шансов: <b>${total.toFixed(2)}%</b>`;
         }
 
         function collectData() {
-            const data = { prizes: {} };
-            Object.keys(cases).forEach(caseId => {
-                const nameEl = document.getElementById(`case-name-${caseId}`);
-                const name = nameEl ? nameEl.value.trim() || caseId : caseId;
-                data.prizes[name] = cases[caseId].map(p => {
-                    const clean = {
-                        chance: parseFloat(p.chance) || 100,
-                        enchanted: !!p.enchanted,
-                        material: p.material || 'stone',
-                        display_name: p.display_name || '&7Приз',
-                        give_commands: p.give_commands || []
-                    };
-                    if (p.items?.length) {
-                        clean.items = p.items.map(s => ({
-                            chance: parseFloat(s.chance) || 50,
-                            enchanted: !!s.enchanted,
-                            material: s.material || 'diamond',
-                            display_name: s.display_name || '&bПодприз',
-                            give_commands: s.give_commands || []
-                        }));
-                    }
+            const out = { prizes: {} };
+            for (let name in cases) {
+                out.prizes[name] = cases[name].map(p => {
+                    const { _id, ...clean } = p;
                     return clean;
                 });
-            });
-            return data;
+            }
+            return out;
         }
 
         function showPreview() {
-            const data = collectData();
-            try {
-                const yaml = jsyaml.dump(data, { indent: 2, lineWidth: -1, noRefs: true });
-                document.getElementById('yaml-preview').textContent = yaml;
-                new bootstrap.Modal(document.getElementById('preview-modal')).show();
-            } catch (e) {
-                alert('Ошибка формирования YAML: ' + e.message);
-            }
-        }
-
-        function generateYaml() {
-            downloadYaml();
+            const yaml = jsyaml.dump(collectData(), { indent: 2, lineWidth: -1 });
+            document.getElementById('yaml-preview').textContent = yaml;
+            new bootstrap.Modal('#preview-modal').show();
         }
 
         function downloadYaml() {
-            const data = collectData();
-            try {
-                const yaml = jsyaml.dump(data, { indent: 2, lineWidth: -1, noRefs: true });
-                const blob = new Blob([yaml], { type: 'text/yaml;charset=utf-8' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'prizes.yml';
-                a.click();
-                URL.revokeObjectURL(url);
-            } catch (e) {
-                alert('Ошибка скачивания: ' + e.message);
-            }
+            const yaml = jsyaml.dump(collectData(), { indent: 2, lineWidth: -1 });
+            const blob = new Blob([yaml], { type: 'text/yaml' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'prizes.yml';
+            a.click();
         }
 
-        // === ЗАГРУЗКА YAML ===
         function loadYaml(event) {
             const file = event.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = (e) => {
                 try {
-                    const yamlText = e.target.result;
-                    const parsed = jsyaml.load(yamlText);
-
-                    if (!parsed || !parsed.prizes || typeof parsed.prizes !== 'object') {
-                        throw new Error('Неверная структура: ожидается prizes: { ... }');
-                    }
-
-                    // Очищаем текущие кейсы
-                    document.getElementById('cases-container').innerHTML = '';
-                    cases = {};
-                    nextCaseId = 1;
-
-                    Object.entries(parsed.prizes).forEach(([caseName, prizesList]) => {
-                        const caseId = addCase(caseName, caseName);  // Используем caseName как internalId для уникальности
-                        prizesList.forEach(prizeData => {
-                            addPrize(caseId, prizeData);
-                        });
-                    });
-
-                    alert('Конфиг успешно загружен! Теперь можно редактировать и скачать.');
-                    saveToStorage();
-                } catch (err) {
-                    alert('Ошибка загрузки YAML:\n' + err.message + '\n\nПроверьте файл на валидность.');
-                }
+                    const parsed = jsyaml.load(e.target.result);
+                    renderAll(parsed);
+                    saveToLocalStorage();
+                } catch(err) { alert("Ошибка файла!"); }
             };
             reader.readAsText(file);
         }
 
-        // === СОХРАНЕНИЕ В LOCALSTORAGE ===
-        function saveToStorage() {
-            const state = {
-                cases: cases,
-                nextCaseId: nextCaseId
-            };
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-        }
-
-        function loadFromStorage() {
-            const saved = localStorage.getItem(STORAGE_KEY);
-            if (!saved) return;
-            try {
-                const state = JSON.parse(saved);
-                cases = state.cases || {};
-                nextCaseId = state.nextCaseId || 1;
-
-                // Восстанавливаем UI
-                document.getElementById('cases-container').innerHTML = '';
-                Object.keys(cases).forEach(caseId => {
-                    addCase(caseId, caseId);  // Добавляем с сохраненным ID
-                    cases[caseId].forEach(prize => addPrize(caseId, prize));
-                });
-            } catch (e) {
-                console.error('Ошибка загрузки из storage:', e);
-                localStorage.removeItem(STORAGE_KEY);  // Очищаем, если ошибка
+        function clearAllData() {
+            if(confirm('Это удалит ВСЕ данные из браузера. Уверены?')) {
+                localStorage.removeItem(STORAGE_KEY);
+                location.reload();
             }
         }
 
-        // Инициализация
-        document.addEventListener('DOMContentLoaded', () => {
-            loadFromStorage();
-            if (Object.keys(cases).length === 0) {
-                addCase('default');
-            }
-        });
+        document.addEventListener('DOMContentLoaded', loadFromLocalStorage);
     </script>
 </body>
 </html>
