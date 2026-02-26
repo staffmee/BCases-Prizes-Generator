@@ -130,16 +130,20 @@
             delete cases[oldId];
             const section = document.querySelector(`[data-case="${oldId}"]`);
             section.dataset.case = newId;
-            document.getElementById(`prizes-${oldId}`).id = `prizes-${newId}`;
-            document.getElementById(`stats-${oldId}`).id = `stats-${newId}`;
-            document.getElementById(`case-name-${oldId}`).id = `case-name-${newId}`;
+            const prizesEl = document.getElementById(`prizes-${oldId}`);
+            if (prizesEl) prizesEl.id = `prizes-${newId}`;
+            const statsEl = document.getElementById(`stats-${oldId}`);
+            if (statsEl) statsEl.id = `stats-${newId}`;
+            const nameInput = document.getElementById(`case-name-${oldId}`);
+            if (nameInput) nameInput.id = `case-name-${newId}`;
             updateStats(newId);
         }
 
         function removeCase(caseId) {
             if (!confirm('Удалить кейс и все его призы?')) return;
             delete cases[caseId];
-            document.querySelector(`[data-case="${caseId}"]`).remove();
+            const section = document.querySelector(`[data-case="${caseId}"]`);
+            if (section) section.remove();
         }
 
         function addPrize(caseId, prizeData = {}) {
@@ -228,13 +232,16 @@
 
             // Восстанавливаем подпризы, если есть
             if (prize.items.length > 0) {
-                document.getElementById(`subprizes-${prizeId}`).style.display = 'block';
-                document.getElementById(`subprize-btn-${prizeId}`).innerHTML = '<i class="fas fa-minus me-1"></i>Скрыть подпризы';
+                const subContainer = document.getElementById(`subprizes-${prizeId}`);
+                if (subContainer) subContainer.style.display = 'block';
+                const btn = document.getElementById(`subprize-btn-${prizeId}`);
+                if (btn) btn.innerHTML = '<i class="fas fa-minus me-1"></i>Скрыть подпризы';
                 prize.items.forEach(sub => addSubprize(caseId, prizeId, sub));
             }
 
             updatePlaceholder(prizeId);
-            document.getElementById(`cmd-select-${prizeId}`).addEventListener('change', () => updatePlaceholder(prizeId));
+            const selectEl = document.getElementById(`cmd-select-${prizeId}`);
+            if (selectEl) selectEl.addEventListener('change', () => updatePlaceholder(prizeId));
             updateStats(caseId);
         }
 
@@ -255,6 +262,7 @@
 
             const cmdsText = sub.give_commands.join('\n');
             const container = document.getElementById(`subprizes-container-${prizeId}`);
+            if (!container) return;
             const subHtml = `
                 <div class="subprize-item" data-subprize="${subId}">
                     <div class="d-flex justify-content-between mb-2">
@@ -291,10 +299,8 @@
             updateStats(caseId);
         }
 
-        // Остальные функции (updatePrize, updateCommands, insertCommand, toggleSubprizes, removePrize, removeSubprize и т.д.) остаются такими же, как в предыдущей версии
-
         function updatePrize(caseId, prizeId, key, value) {
-            const prize = cases[caseId].find(p => p._id === prizeId);
+            const prize = cases[caseId]?.find(p => p._id === prizeId);
             if (!prize) return;
             if (key === 'chance') value = parseFloat(value) || 100;
             if (key === 'enchanted') value = !!value;
@@ -303,12 +309,12 @@
         }
 
         function updateCommands(caseId, prizeId, value) {
-            const prize = cases[caseId].find(p => p._id === prizeId);
+            const prize = cases[caseId]?.find(p => p._id === prizeId);
             if (prize) prize.give_commands = value.split('\n').map(c => c.trim()).filter(Boolean);
         }
 
         function updateSubprize(caseId, prizeId, subId, key, value) {
-            const parent = cases[caseId].find(p => p._id === prizeId);
+            const parent = cases[caseId]?.find(p => p._id === prizeId);
             if (!parent) return;
             const sub = parent.items.find(s => s._id === subId);
             if (!sub) return;
@@ -319,7 +325,7 @@
         }
 
         function updateSubCommands(caseId, prizeId, subId, value) {
-            const parent = cases[caseId].find(p => p._id === prizeId);
+            const parent = cases[caseId]?.find(p => p._id === prizeId);
             if (!parent) return;
             const sub = parent.items.find(s => s._id === subId);
             if (sub) sub.give_commands = value.split('\n').map(c => c.trim()).filter(Boolean);
@@ -327,24 +333,31 @@
 
         function insertCommand(caseId, prizeId) {
             const select = document.getElementById(`cmd-select-${prizeId}`);
-            const arg = document.getElementById(`cmd-arg-${prizeId}`).value.trim();
+            if (!select) return;
+            const arg = document.getElementById(`cmd-arg-${prizeId}`)?.value.trim() || '';
             let cmd = select.value;
             if (arg) cmd += ' ' + arg;
             const textarea = document.querySelector(`[data-prize="${prizeId}"] textarea`);
-            textarea.value = textarea.value ? textarea.value + '\n' + cmd : cmd;
-            updateCommands(caseId, prizeId, textarea.value);
-            document.getElementById(`cmd-arg-${prizeId}`).value = '';
+            if (textarea) {
+                textarea.value = textarea.value ? textarea.value + '\n' + cmd : cmd;
+                updateCommands(caseId, prizeId, textarea.value);
+            }
+            const argInput = document.getElementById(`cmd-arg-${prizeId}`);
+            if (argInput) argInput.value = '';
         }
 
         function updatePlaceholder(prizeId) {
             const select = document.getElementById(`cmd-select-${prizeId}`);
+            if (!select) return;
             const input = document.getElementById(`cmd-arg-${prizeId}`);
-            input.placeholder = cmdPlaceholders[select.value] || 'аргументы команды';
+            if (input) input.placeholder = cmdPlaceholders[select.value] || 'аргументы команды';
         }
 
         function toggleSubprizes(caseId, prizeId) {
             const el = document.getElementById(`subprizes-${prizeId}`);
+            if (!el) return;
             const btn = document.getElementById(`subprize-btn-${prizeId}`);
+            if (!btn) return;
             const show = el.style.display !== 'block';
             el.style.display = show ? 'block' : 'none';
             btn.innerHTML = show 
@@ -353,28 +366,33 @@
         }
 
         function removePrize(caseId, prizeId) {
+            if (!cases[caseId]) return;
             cases[caseId] = cases[caseId].filter(p => p._id !== prizeId);
-            document.querySelector(`[data-prize="${prizeId}"]`).remove();
+            const prizeEl = document.querySelector(`[data-prize="${prizeId}"]`);
+            if (prizeEl) prizeEl.remove();
             updateStats(caseId);
         }
 
         function removeSubprize(caseId, prizeId, subId) {
-            const parent = cases[caseId].find(p => p._id === prizeId);
+            const parent = cases[caseId]?.find(p => p._id === prizeId);
             if (parent) parent.items = parent.items.filter(s => s._id !== subId);
-            document.querySelector(`[data-subprize="${subId}"]`).remove();
+            const subEl = document.querySelector(`[data-subprize="${subId}"]`);
+            if (subEl) subEl.remove();
             updateStats(caseId);
         }
 
         function updateStats(caseId) {
             if (!cases[caseId]) return;
             const total = cases[caseId].reduce((sum, p) => sum + (parseFloat(p.chance) || 0), 0);
-            document.getElementById(`stats-${caseId}`).innerHTML = `Сумма шансов: <strong>${total.toFixed(2)}</strong>`;
+            const statsEl = document.getElementById(`stats-${caseId}`);
+            if (statsEl) statsEl.innerHTML = `Сумма шансов: <strong>${total.toFixed(2)}</strong>`;
         }
 
         function collectData() {
             const data = { prizes: {} };
             Object.keys(cases).forEach(caseId => {
-                const name = document.getElementById(`case-name-${caseId}`)?.value.trim() || caseId;
+                const nameEl = document.getElementById(`case-name-${caseId}`);
+                const name = nameEl ? nameEl.value.trim() || caseId : caseId;
                 data.prizes[name] = cases[caseId].map(p => {
                     const clean = {
                         chance: parseFloat(p.chance) || 100,
@@ -409,19 +427,27 @@
             }
         }
 
-        function downloadYaml() {
-            const data = collectData();
-            const yaml = jsyaml.dump(data, { indent: 2, lineWidth: -1, noRefs: true });
-            const blob = new Blob([yaml], { type: 'text/yaml;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'prizes.yml';
-            a.click();
-            URL.revokeObjectURL(url);
+        function generateYaml() {
+            downloadYaml();
         }
 
-        // === НОВАЯ ФУНКЦИЯ: ЗАГРУЗКА YAML ===
+        function downloadYaml() {
+            const data = collectData();
+            try {
+                const yaml = jsyaml.dump(data, { indent: 2, lineWidth: -1, noRefs: true });
+                const blob = new Blob([yaml], { type: 'text/yaml;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'prizes.yml';
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                alert('Ошибка скачивания: ' + e.message);
+            }
+        }
+
+        // === ЗАГРУЗКА YAML ===
         function loadYaml(event) {
             const file = event.target.files[0];
             if (!file) return;
