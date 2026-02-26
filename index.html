@@ -1,321 +1,505 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BCases Prizes Generator/title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
-    <style>
-        body { background-color: #f8f9fa; padding-bottom: 50px; }
-        .case-section { border: 1px solid #dee2e6; border-radius: 10px; margin-bottom: 25px; padding: 20px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-        .prize-item { border: 1px solid #e9ecef; border-radius: 8px; margin-bottom: 15px; padding: 15px; background: #f8f9fa; }
-        .subprize-item { margin-left: 25px; border-left: 4px solid #0d6efd; background: #e7f1ff; padding: 12px; border-radius: 6px; margin-top: 10px; }
-        .cmd-list { min-height: 90px; font-family: 'Courier New', Courier, monospace; font-size: 0.95em; }
-        .preview { background: #1e293b; color: #e2e8f0; padding: 20px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; max-height: 500px; overflow-y: auto; }
-        .stats { background: #d1fae5; padding: 10px; border-radius: 6px; margin-top: 12px; font-weight: 500; }
-        .file-input { display: none; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BCases · Генератор prizes.yml</title>
+  <!-- Bootstrap 5.3 + Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <!-- Font Awesome 6.5 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- js-yaml 4.1 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+  <style>
+    body { background: #f4f6f9; font-family: 'Segoe UI', system-ui, sans-serif; }
+    .card-case { border-left: 5px solid #0d6efd; box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.05); transition: 0.2s; }
+    .card-case:hover { box-shadow: 0 0.75rem 1.5rem rgba(0,0,0,0.1); }
+    .prize-item { background: #f8fafc; border-radius: 1rem; border: 1px solid #dee2e6; padding: 1.25rem; margin-bottom: 1rem; }
+    .subprize-item { background: #ffffff; border-radius: 0.75rem; border: 1px dashed #adb5bd; padding: 0.75rem; margin-top: 0.75rem; margin-left: 1.5rem; }
+    .chance-sum-badge { font-size: 0.9rem; padding: 0.4rem 0.9rem; border-radius: 50px; font-weight: 500; }
+    .btn-icon { padding: 0.25rem 0.6rem; }
+    .stats-ok { background-color: #d1e7dd; color: #0a3622; border: 1px solid #a3cfbb; }
+    .stats-warn { background-color: #fff3cd; color: #664d03; border: 1px solid #ffe69c; }
+    .cmd-tag { background: #e9ecef; border-radius: 0.3rem; padding: 0.2rem 0.7rem; font-size: 0.85rem; font-family: monospace; cursor: pointer; transition: 0.1s; }
+    .cmd-tag:hover { background: #ced4da; }
+    .placeholder-list { font-size: 0.85rem; color: #4b5563; margin-top: 0.2rem; }
+    .material-datalist { width: 100%; padding: 0.375rem 0.75rem; border: 1px solid #ced4da; border-radius: 0.375rem; }
+    .accordion-button:not(.collapsed) { background-color: #e7f1ff; }
+    .sub-toggle { font-size: 0.85rem; }
+    textarea { font-family: 'Courier New', monospace; }
+  </style>
 </head>
-<body>
-    <div class="container my-5">
-        <div class="text-center mb-5">
-            <h1><i class="fas fa-rocket me-3 text-primary"></i>BCases Editor</h1>
-            <p class="text-muted lead">by @staffmee</p>
-        </div>
+<body class="pb-5">
 
-        <div class="d-flex flex-wrap gap-3 justify-content-center mb-4">
-            <button class="btn btn-primary btn-lg" onclick="addCase()">
-                <i class="fas fa-plus me-2"></i>Добавить кейс
-            </button>
-            <label class="btn btn-outline-success btn-lg mb-0" for="load-yaml">
-                <i class="fas fa-upload me-2"></i>Загрузить файл
-            </label>
-            <input type="file" id="load-yaml" class="file-input" accept=".yml,.yaml" onchange="loadYaml(event)">
-            <button class="btn btn-success btn-lg" onclick="downloadYaml()">
-                <i class="fas fa-download me-2"></i>Скачать .yml
-            </button>
-            <button class="btn btn-info btn-lg" onclick="showPreview()">
-                <i class="fas fa-eye me-2"></i>Предпросмотр
-            </button>
-            <button class="btn btn-danger btn-lg" onclick="clearAllData()">
-                <i class="fas fa-trash-alt"></i> Очистить всё
-            </button>
-        </div>
+<div class="container py-4">
+  <!-- заголовок + панель управления -->
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+    <h2 class="mb-2 mb-sm-0"><i class="fas fa-cubes text-primary me-2"></i>BCases · prizes.yml · by @staffmee</h2>
+    <div class="d-flex gap-2 flex-wrap">
+      <button class="btn btn-outline-success" id="loadFileBtn"><i class="fas fa-upload me-1"></i>Загрузить YAML</button>
+      <input type="file" id="fileInput" accept=".yml,.yaml" style="display: none;">
+      <button class="btn btn-outline-primary" id="previewBtn"><i class="fas fa-eye me-1"></i>Предпросмотр</button>
+      <button class="btn btn-success" id="downloadBtn"><i class="fas fa-download me-1"></i>Скачать YAML</button>
+    </div>
+  </div>
 
-        <div id="cases-container"></div>
+  <!-- Кнопка добавить кейс -->
+  <div class="mb-4">
+    <button class="btn btn-primary" id="addCaseBtn"><i class="fas fa-plus-circle me-1"></i>Добавить кейс</button>
+  </div>
 
-        <div class="modal fade" id="preview-modal" tabindex="-1">
-            <div class="modal-dialog modal-xl modal-dialog-scrollable">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Предпросмотр prizes.yml</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div id="yaml-preview" class="preview"></div>
-                    </div>
-                    <div class="modal-footer">
-                        <button class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
-                        <button class="btn btn-success" onclick="downloadYaml()">Скачать</button>
-                    </div>
-                </div>
-            </div>
+  <!-- Контейнер для всех кейсов -->
+  <div id="casesContainer"></div>
+</div>
+
+<!-- Модалка предпросмотра YAML -->
+<div class="modal fade" id="previewModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-code me-2"></i>YAML предпросмотр</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+      </div>
+      <div class="modal-body">
+        <pre class="bg-light p-3 rounded" style="max-height: 60vh;" id="yamlPreview">— пусто —</pre>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+        <button class="btn btn-primary" id="copyYamlBtn"><i class="fas fa-copy me-1"></i>Копировать</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Шаблон для нового приза (скрыт) -->
+<template id="prize-template">
+  <div class="prize-item" data-prize-id="{prizeId}">
+    <div class="d-flex flex-wrap gap-2 align-items-start mb-2">
+      <div class="flex-grow-1 d-flex flex-wrap gap-2 align-items-center">
+        <input type="number" step="0.01" min="0.01" class="form-control form-control-sm prize-chance" style="width: 100px;" placeholder="Шанс" value="10.0">
+        <div class="form-check form-switch">
+          <input class="form-check-input prize-enchanted" type="checkbox" role="switch">
+          <label class="form-check-label">зачар.</label>
         </div>
+        <input type="text" class="form-control form-control-sm prize-material" list="materialList" placeholder="Материал" style="width: 140px;" value="stone">
+        <input type="text" class="form-control form-control-sm prize-name" placeholder="Display name" style="width: 180px;" value="Приз">
+      </div>
+      <div class="d-flex gap-1">
+        <button class="btn btn-sm btn-outline-secondary toggle-sub"><i class="fas fa-layer-group"></i> подпризы</button>
+        <button class="btn btn-sm btn-outline-danger delete-prize"><i class="fas fa-trash-alt"></i></button>
+      </div>
     </div>
 
-    <datalist id="materials-list">
-        <option value="stone"><option value="diamond"><option value="netherite_ingot"><option value="elytra">
-    </datalist>
+    <!-- быстрые команды и textarea -->
+    <div class="mb-2 d-flex flex-wrap gap-2 align-items-center">
+      <select class="form-select form-select-sm cmd-select" style="width: 130px;">
+        <option value="[MESSAGE] %player%">[MESSAGE]</option>
+        <option value="[BROADCAST]">[BROADCAST]</option>
+        <option value="[CONSOLE]">[CONSOLE]</option>
+        <option value="[GIVE] %player% minecraft:stone 1">[GIVE]</option>
+        <option value="[TITLE] %player% title">[TITLE]</option>
+        <option value="[ACTION_BAR] %player% Привет">[ACTION_BAR]</option>
+        <option value="[PLAY] minecraft:block.note_block.pling">[PLAY]</option>
+        <option value="[TAKE_KEY] 1">[TAKE_KEY]</option>
+      </select>
+      <input type="text" class="form-control form-control-sm cmd-arg" placeholder="Аргументы / плейсхолдеры" style="width: 240px;" value="%player%">
+      <button class="btn btn-sm btn-outline-primary add-cmd-btn"><i class="fas fa-plus"></i> Добавить команду</button>
+    </div>
+    <textarea class="form-control form-control-sm prize-commands" rows="2" placeholder="Список команд (одна на строку)">[MESSAGE] %player% Спасибо!</textarea>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        let cases = {}; 
-        const STORAGE_KEY = 'bcases_autosave';
+    <!-- контейнер для подпризов -->
+    <div class="subprizes-container mt-2" style="display: none;"></div>
+  </div>
+</template>
 
-        const cmdPlaceholders = {
-            '[MESSAGE]': '&fВы выиграли приз!',
-            '[BROADCAST]': '&6%player% выиграл!',
-            '[CONSOLE]': 'give %player% diamond 1',
-            '[GIVE]': 'diamond_sword 1',
-            '[TAKE_KEY]': 'default'
+<!-- datalist материалов -->
+<datalist id="materialList">
+  <option value="stone"><option value="diamond"><option value="iron_ingot"><option value="gold_ingot"><option value="emerald">
+  <option value="diamond_sword"><option value="bow"><option value="arrow"><option value="apple"><option value="bread">
+  <option value="iron_chestplate"><option value="golden_apple"><option value="ender_pearl"><option value="blaze_rod">
+  <option value="potion"><option value="experience_bottle"><option value="tnt"><option value="obsidian"><option value="cobblestone">
+  <option value="oak_log"><option value="spruce_planks"><option value="netherite_ingot"><option value="nether_star">
+  <option value="saddle"><option value="name_tag"><option value="book"><option value="paper"><option value="stick">
+  <option value="coal"><option value="redstone"><option value="lapis_lazuli"><option value="ender_chest">
+</datalist>
+
+<script>
+  (function() {
+    // --- глобальные переменные ---
+    let caseCounter = 1;            // для генерации уникальных ID
+    const casesContainer = document.getElementById('casesContainer');
+    const template = document.getElementById('prize-template').innerHTML;
+    let modalInstance = null;
+
+    // инициализация модалки Bootstrap
+    document.addEventListener('DOMContentLoaded', function() {
+      modalInstance = new bootstrap.Modal(document.getElementById('previewModal'));
+    });
+
+    // --- вспомогательные функции: генерация ID, сбор данных, сохранение/загрузка localStorage ---
+    function generateCaseId() { return `case-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`; }
+    function generatePrizeId() { return `prize-${Date.now()}-${Math.random().toString(36).substr(2, 8)}`; }
+
+    // сохранить всё в localStorage
+    function saveToLocalStorage() {
+      try {
+        const data = collectCasesData();  // собираем UI данные
+        localStorage.setItem('bcases_prizes_ui', JSON.stringify(data));
+      } catch (e) { console.warn('save error', e); }
+    }
+
+    // восстановить из localStorage (вызывается при старте)
+    function restoreFromLocalStorage() {
+      const saved = localStorage.getItem('bcases_prizes_ui');
+      if (!saved) return false;
+      try {
+        const casesData = JSON.parse(saved);
+        // очищаем контейнер
+        casesContainer.innerHTML = '';
+        caseCounter = 1;
+        casesData.forEach(c => {
+          addCaseToUI(c.caseName, c.prizes);
+        });
+        return true;
+      } catch (e) { console.warn('restore error', e); return false; }
+    }
+
+    // --- сбор данных из UI (для экспорта в YAML и сохранения) ---
+    function collectCasesData() {
+      const caseCards = document.querySelectorAll('.case-card');
+      const cases = [];
+      for (let card of caseCards) {
+        const caseId = card.dataset.caseId;
+        const caseNameInput = card.querySelector('.case-name-input');
+        if (!caseNameInput) continue;
+        const caseName = caseNameInput.value.trim() || 'unnamed';
+        const prizes = collectPrizesFromContainer(card.querySelector('.prizes-container'));
+        cases.push({ caseName, prizes });
+      }
+      return cases;
+    }
+
+    // сбор призов из контейнера (рекурсивно обрабатывает подпризы)
+    function collectPrizesFromContainer(container) {
+      const prizes = [];
+      const prizeDivs = container.querySelectorAll(':scope > .prize-item');
+      for (let pDiv of prizeDivs) {
+        const chance = parseFloat(pDiv.querySelector('.prize-chance')?.value) || 0;
+        const enchanted = pDiv.querySelector('.prize-enchanted')?.checked || false;
+        const material = pDiv.querySelector('.prize-material')?.value || 'stone';
+        const displayName = pDiv.querySelector('.prize-name')?.value || '';
+        const commands = pDiv.querySelector('.prize-commands')?.value.split('\n').filter(c => c.trim() !== '') || [];
+
+        const prize = { chance, enchanted, material, display_name: displayName, give_commands: commands };
+        // подпризы
+        const subContainer = pDiv.querySelector('.subprizes-container');
+        if (subContainer && subContainer.style.display !== 'none') {
+          const subPrizes = collectPrizesFromContainer(subContainer);
+          if (subPrizes.length) prize.items = subPrizes;
+        }
+        prizes.push(prize);
+      }
+      return prizes;
+    }
+
+    // --- добавление нового кейса в UI (опционально с предзаполненными призами) ---
+    function addCaseToUI(caseName = 'Новый кейс', prizesData = []) {
+      const caseId = generateCaseId();
+      const caseDiv = document.createElement('div');
+      caseDiv.className = 'card card-case mb-4 case-card';
+      caseDiv.dataset.caseId = caseId;
+      caseDiv.innerHTML = `
+        <div class="card-header bg-white d-flex flex-wrap align-items-center justify-content-between gap-2">
+          <div class="d-flex flex-wrap align-items-center gap-3">
+            <input type="text" class="form-control form-control-sm case-name-input" style="width: 220px;" value="${escapeHtml(caseName)}" placeholder="Имя кейса">
+            <span class="chance-sum-badge bg-light border" id="sum-${caseId}"><i class="fas fa-percent me-1"></i>сумма: 0.0</span>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-primary add-prize-btn" title="Добавить приз"><i class="fas fa-gift me-1"></i>Приз</button>
+            <button class="btn btn-sm btn-outline-danger delete-case"><i class="fas fa-times-circle"></i></button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="prizes-container"></div>
+        </div>
+      `;
+      casesContainer.appendChild(caseDiv);
+
+      // добавить призы, если переданы
+      const prizesContainer = caseDiv.querySelector('.prizes-container');
+      if (prizesData && prizesData.length) {
+        prizesData.forEach(p => addPrizeToContainer(prizesContainer, p));
+      }
+
+      // пересчёт суммы шансов при изменении
+      const inputs = caseDiv.querySelectorAll('.prize-chance');
+      updateChanceSum(caseId);
+      caseDiv.addEventListener('input', (e) => {
+        if (e.target.classList.contains('prize-chance')) updateChanceSum(caseId);
+      });
+
+      // автосохранение после изменений
+      caseDiv.addEventListener('input', () => saveToLocalStorage());
+      caseDiv.addEventListener('change', () => saveToLocalStorage());
+
+      // кнопка добавить приз в этом кейсе
+      caseDiv.querySelector('.add-prize-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        addPrizeToContainer(prizesContainer, null);
+        updateChanceSum(caseId);
+        saveToLocalStorage();
+      });
+
+      // удаление кейса
+      caseDiv.querySelector('.delete-case').addEventListener('click', () => {
+        caseDiv.remove();
+        saveToLocalStorage();
+      });
+
+      // переименование — сохраняем
+      caseDiv.querySelector('.case-name-input').addEventListener('change', saveToLocalStorage);
+      return caseDiv;
+    }
+
+    // добавить приз в контейнер (prizesContainer) с рекурсивным заполнением если переданы данные
+    function addPrizeToContainer(container, prizeData = null) {
+      const prizeId = generatePrizeId();
+      let html = template.replace(/{prizeId}/g, prizeId);
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = html;
+      const prizeDiv = tempDiv.firstElementChild;
+
+      // если есть prizeData — заполнить поля
+      if (prizeData) {
+        prizeDiv.querySelector('.prize-chance').value = prizeData.chance || 0;
+        prizeDiv.querySelector('.prize-enchanted').checked = prizeData.enchanted || false;
+        prizeDiv.querySelector('.prize-material').value = prizeData.material || 'stone';
+        prizeDiv.querySelector('.prize-name').value = prizeData.display_name || '';
+        if (prizeData.give_commands && Array.isArray(prizeData.give_commands)) {
+          prizeDiv.querySelector('.prize-commands').value = prizeData.give_commands.join('\n');
+        }
+        // если есть подпризы (items) — добавляем их в скрытый контейнер, но показываем его
+        if (prizeData.items && prizeData.items.length) {
+          const subContainer = prizeDiv.querySelector('.subprizes-container');
+          subContainer.style.display = 'block';  // сделаем видимым сразу
+          prizeData.items.forEach(sub => addPrizeToContainer(subContainer, sub));
+        }
+      }
+
+      container.appendChild(prizeDiv);
+
+      // --- обработчики для приза ---
+      // кнопка удалить приз
+      prizeDiv.querySelector('.delete-prize').addEventListener('click', () => {
+        prizeDiv.remove();
+        // обновить сумму в родительском кейсе
+        const caseCard = prizeDiv.closest('.case-card');
+        if (caseCard) updateChanceSum(caseCard.dataset.caseId);
+        saveToLocalStorage();
+      });
+
+      // кнопка показать/скрыть подпризы
+      const toggleBtn = prizeDiv.querySelector('.toggle-sub');
+      const subContainer = prizeDiv.querySelector('.subprizes-container');
+      toggleBtn.addEventListener('click', () => {
+        if (subContainer.style.display === 'none') {
+          subContainer.style.display = 'block';
+          toggleBtn.innerHTML = '<i class="fas fa-layer-group"></i> скрыть';
+        } else {
+          subContainer.style.display = 'none';
+          toggleBtn.innerHTML = '<i class="fas fa-layer-group"></i> подпризы';
+        }
+        saveToLocalStorage();
+      });
+
+      // добавление команды через быстрый выбор
+      const addCmdBtn = prizeDiv.querySelector('.add-cmd-btn');
+      const cmdSelect = prizeDiv.querySelector('.cmd-select');
+      const cmdArg = prizeDiv.querySelector('.cmd-arg');
+      const cmdTextarea = prizeDiv.querySelector('.prize-commands');
+      addCmdBtn.addEventListener('click', () => {
+        let baseCmd = cmdSelect.value;
+        // если есть аргумент и в команде есть символ % (placeholder) — заменяем? обычно просто приклеиваем
+        if (cmdArg.value.trim() !== '' && !baseCmd.includes('%player%')) {
+          // для GIVE и подобных используем аргумент как доп
+          if (baseCmd.startsWith('[GIVE]')) {
+            baseCmd = '[GIVE] ' + cmdArg.value.trim() + ' minecraft:stone 1';
+          } else if (baseCmd.startsWith('[MESSAGE]')) {
+            baseCmd = '[MESSAGE] ' + cmdArg.value.trim();
+          } else {
+            baseCmd = baseCmd + ' ' + cmdArg.value.trim();
+          }
+        } else if (baseCmd.includes('%player%') && cmdArg.value.trim()) {
+          baseCmd = baseCmd.replace('%player%', cmdArg.value.trim());
+        }
+        // вставить в textarea (с новой строки)
+        const current = cmdTextarea.value;
+        cmdTextarea.value = current ? current + '\n' + baseCmd : baseCmd;
+        saveToLocalStorage();
+      });
+
+      // все изменения сохраняем
+      prizeDiv.addEventListener('input', () => {
+        const caseCard = prizeDiv.closest('.case-card');
+        if (caseCard) updateChanceSum(caseCard.dataset.caseId);
+        saveToLocalStorage();
+      });
+      prizeDiv.addEventListener('change', saveToLocalStorage);
+
+      // Для подпризов кнопка добавления: добавить приз в subContainer
+      // Но шаблон не содержит кнопку добавления внутри subprize. Добавим небольшую кнопку под контейнером (или используем внешнюю?)
+      // Удобнее: внутри блока приза, под контейнером вставить кнопку. Но в текущем template её нет. Добавим через JS при создании каждого приза?
+      // Создадим кнопку внутри subprizes-container как заглушку (при первом показе)
+      if (!subContainer.querySelector('.add-subprize-btn')) {
+        const addSubBtn = document.createElement('button');
+        addSubBtn.className = 'btn btn-sm btn-outline-secondary mt-2 add-subprize-btn';
+        addSubBtn.innerHTML = '<i class="fas fa-plus-circle"></i> добавить подприз';
+        subContainer.appendChild(addSubBtn);
+        addSubBtn.addEventListener('click', () => {
+          addPrizeToContainer(subContainer, null);
+          // обновить сумму выше? сумма подпризов не участвует в основной сумме, но мы обновим родительскую сумму шансов (она не меняется)
+          const caseCard = prizeDiv.closest('.case-card');
+          if (caseCard) updateChanceSum(caseCard.dataset.caseId);
+          saveToLocalStorage();
+        });
+      }
+    }
+
+    // обновление суммы шансов для конкретного кейса
+    function updateChanceSum(caseId) {
+      const caseCard = document.querySelector(`.case-card[data-case-id="${caseId}"]`);
+      if (!caseCard) return;
+      const sumSpan = document.getElementById(`sum-${caseId}`);
+      if (!sumSpan) return;
+      const chanceInputs = caseCard.querySelectorAll('.prizes-container > .prize-item .prize-chance');
+      let total = 0;
+      chanceInputs.forEach(inp => { total += parseFloat(inp.value) || 0; });
+      sumSpan.innerHTML = `<i class="fas fa-percent me-1"></i>сумма: ${total.toFixed(2)}`;
+      // изменить класс в зависимости от 100 ± tiny
+      if (Math.abs(total - 100) < 0.01) {
+        sumSpan.className = 'chance-sum-badge stats-ok';
+      } else {
+        sumSpan.className = 'chance-sum-badge stats-warn';
+      }
+    }
+
+    // --- утилита экранирования ---
+    function escapeHtml(unsafe) {
+      return unsafe.replace(/[&<>"]/g, function(m) {
+        if (m === '&') return '&amp;'; if (m === '<') return '&lt;'; if (m === '>') return '&gt;'; if (m === '"') return '&quot;';
+        return m;
+      });
+    }
+
+    // --- загрузка YAML и заполнение интерфейса ---
+    function loadYamlAndRender(content) {
+      try {
+        const parsed = jsyaml.load(content);
+        if (!parsed || typeof parsed !== 'object') throw new Error('Невалидный YAML (не объект)');
+        // ожидаем массив кейсов или объект с секциями? prizes.yml обычно массив? В задании — кейсы: предположим массив объектов с name и prizes.
+        // Но в UI мы храним как массив {caseName, prizes}. Допустим, YAML содержит список: - name: "case1" prizes: [ ...]
+        let casesArray = [];
+        if (Array.isArray(parsed)) {
+          casesArray = parsed;
+        } else {
+          // возможно это объект с ключами кейсов? Не усложняем, поддержим массив
+          throw new Error('Корневой элемент должен быть массивом кейсов');
+        }
+
+        // очистить UI
+        casesContainer.innerHTML = '';
+        caseCounter = 1;
+        casesArray.forEach(item => {
+          let caseName = item.name || item.caseName || 'Кейс';
+          let prizes = item.prizes || item.items || [];
+          addCaseToUI(caseName, prizes);
+        });
+        saveToLocalStorage();
+      } catch (e) {
+        alert('Ошибка парсинга YAML: ' + e.message);
+      }
+    }
+
+    // --- предпросмотр YAML (модалка) ---
+    function showPreview() {
+      const cases = collectCasesData();
+      // преобразуем в массив под формат prizes.yml (как в примере)
+      const yamlData = cases.map(c => ({
+        name: c.caseName,
+        prizes: c.prizes
+      }));
+      try {
+        const yamlText = jsyaml.dump(yamlData, { indent: 2, lineWidth: -1 });
+        document.getElementById('yamlPreview').textContent = yamlText || '— пусто —';
+        modalInstance.show();
+      } catch (e) {
+        alert('Ошибка генерации YAML: ' + e);
+      }
+    }
+
+    // --- инициализация ---
+    function init() {
+      // пробуем восстановить из localStorage
+      const restored = restoreFromLocalStorage();
+      if (!restored) {
+        // создать один демо-кейс по умолчанию
+        addCaseToUI('Пример кейса', [
+          { chance: 50, enchanted: true, material: 'diamond', display_name: '&bАлмаз', give_commands: ['[MESSAGE] &aВы выиграли алмаз!', '[CONSOLE] say Игрок %player% получил алмаз'] },
+          { chance: 50, enchanted: false, material: 'stone', display_name: 'Булыжник', give_commands: ['[GIVE] %player% minecraft:cobblestone 64'] }
+        ]);
+      }
+
+      // --- обработчики кнопок ---
+      document.getElementById('addCaseBtn').addEventListener('click', () => {
+        addCaseToUI('Новый кейс', []);
+        saveToLocalStorage();
+      });
+
+      document.getElementById('downloadBtn').addEventListener('click', () => {
+        const cases = collectCasesData();
+        const yamlData = cases.map(c => ({ name: c.caseName, prizes: c.prizes }));
+        try {
+          const yamlStr = jsyaml.dump(yamlData, { indent: 2, lineWidth: -1 });
+          const blob = new Blob([yamlStr], { type: 'text/yaml' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = 'prizes.yml'; a.click();
+          URL.revokeObjectURL(url);
+        } catch (e) { alert('Ошибка: ' + e); }
+      });
+
+      document.getElementById('previewBtn').addEventListener('click', showPreview);
+
+      document.getElementById('loadFileBtn').addEventListener('click', () => {
+        document.getElementById('fileInput').click();
+      });
+
+      document.getElementById('fileInput').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          loadYamlAndRender(ev.target.result);
         };
+        reader.readAsText(file);
+        e.target.value = ''; // сброс
+      });
 
-        // --- CORE FUNCTIONS ---
+      document.getElementById('copyYamlBtn').addEventListener('click', () => {
+        const text = document.getElementById('yamlPreview').textContent;
+        navigator.clipboard?.writeText(text).then(() => alert('Скопировано!')).catch(() => alert('Не удалось скопировать'));
+      });
 
-        function saveToLocalStorage() {
-            const data = collectData();
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-        }
+      // глобальное автосохранение по событиям (подстраховка)
+      document.addEventListener('input', saveToLocalStorage);
+      document.addEventListener('change', saveToLocalStorage);
+    }
 
-        function loadFromLocalStorage() {
-            const saved = localStorage.getItem(STORAGE_KEY);
-            if (saved) {
-                try {
-                    const parsed = JSON.parse(saved);
-                    renderAll(parsed);
-                } catch (e) { console.error("Ошибка загрузки автосохранения", e); }
-            } else {
-                addCase('default');
-            }
-        }
-
-        function renderAll(data) {
-            document.getElementById('cases-container').innerHTML = '';
-            cases = {};
-            if (data.prizes) {
-                Object.entries(data.prizes).forEach(([name, prizes]) => {
-                    const caseId = addCase(name, false);
-                    prizes.forEach(p => addPrize(caseId, p, false));
-                });
-            }
-        }
-
-        function addCase(caseName = null, shouldSave = true) {
-            const container = document.getElementById('cases-container');
-            const id = caseName || `case_${Date.now()}`;
-            cases[id] = [];
-
-            const html = `
-                <div class="case-section" data-case="${id}">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h3><i class="fas fa-box me-2 text-primary"></i>Кейс: 
-                            <input type="text" class="form-control d-inline-block w-auto ms-2 case-name-input" 
-                                   value="${id}" onchange="updateCaseId('${id}', this.value)">
-                        </h3>
-                        <button class="btn btn-sm btn-outline-danger" onclick="removeCase('${id}')">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                    <div class="prizes-list" id="prizes-${id}"></div>
-                    <button class="btn btn-outline-primary mt-2" onclick="addPrize('${id}')">
-                        <i class="fas fa-plus me-1"></i>Добавить приз
-                    </button>
-                    <div class="stats" id="stats-${id}"></div>
-                </div>
-            `;
-            container.insertAdjacentHTML('beforeend', html);
-            updateStats(id);
-            if(shouldSave) saveToLocalStorage();
-            return id;
-        }
-
-        function updateCaseId(oldId, newId) {
-            newId = newId.trim();
-            if (!newId || (cases[newId] && oldId !== newId)) {
-                alert('ID занят или пуст!');
-                document.querySelector(`[data-case="${oldId}"] .case-name-input`).value = oldId;
-                return;
-            }
-            
-            // Переносим данные в объекте
-            cases[newId] = cases[oldId];
-            delete cases[oldId];
-
-            // Обновляем DOM и атрибуты, чтобы функции удаления/добавления не ломались
-            const section = document.querySelector(`[data-case="${oldId}"]`);
-            section.dataset.case = newId;
-            section.querySelector(`#prizes-${oldId}`).id = `prizes-${newId}`;
-            section.querySelector(`#stats-${oldId}`).id = `stats-${newId}`;
-            
-            // Перезаписываем onclick события у кнопок внутри этой секции
-            const buttons = section.querySelectorAll('button[onclick]');
-            buttons.forEach(btn => {
-                let attr = btn.getAttribute('onclick');
-                btn.setAttribute('onclick', attr.replace(new RegExp(`'${oldId}'`, 'g'), `'${newId}'`));
-            });
-
-            // Перезаписываем oninput у инпутов
-            const inputs = section.querySelectorAll('[oninput], [onchange]');
-            inputs.forEach(el => {
-                ['oninput', 'onchange'].forEach(evt => {
-                    let attr = el.getAttribute(evt);
-                    if(attr) el.setAttribute(evt, attr.replace(new RegExp(`'${oldId}'`, 'g'), `'${newId}'`));
-                });
-            });
-
-            updateStats(newId);
-            saveToLocalStorage();
-        }
-
-        function addPrize(caseId, data = {}, shouldSave = true) {
-            const container = document.getElementById(`prizes-${caseId}`);
-            const pId = `p${Date.now()}${Math.floor(Math.random()*1000)}`;
-            
-            const prize = {
-                _id: pId,
-                chance: data.chance ?? 100,
-                enchanted: !!data.enchanted,
-                material: data.material || 'stone',
-                display_name: data.display_name || '&7Приз',
-                give_commands: data.give_commands || [],
-                items: data.items || []
-            };
-            cases[caseId].push(prize);
-
-            const html = `
-                <div class="prize-item" data-prize="${pId}">
-                    <div class="d-flex justify-content-between mb-3">
-                        <h5><i class="fas fa-gift me-2 text-success"></i>Приз</h5>
-                        <button class="btn btn-sm btn-outline-danger" onclick="removePrize('${caseId}', '${pId}')">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-md-2">
-                            <label>Шанс</label>
-                            <input type="number" class="form-control" value="${prize.chance}" oninput="updatePrize('${caseId}', '${pId}', 'chance', this.value)">
-                        </div>
-                        <div class="col-md-2 text-center">
-                            <label>Glow</label><br>
-                            <input type="checkbox" class="form-check-input" ${prize.enchanted?'checked':''} oninput="updatePrize('${caseId}', '${pId}', 'enchanted', this.checked)">
-                        </div>
-                        <div class="col-md-4">
-                            <label>ID Материала</label>
-                            <input type="text" class="form-control" list="materials-list" value="${prize.material}" oninput="updatePrize('${caseId}', '${pId}', 'material', this.value)">
-                        </div>
-                        <div class="col-md-4">
-                            <label>Имя в меню</label>
-                            <input type="text" class="form-control" value="${prize.display_name}" oninput="updatePrize('${caseId}', '${pId}', 'display_name', this.value)">
-                        </div>
-                    </div>
-                    <div class="mt-3">
-                        <label>Команды</label>
-                        <textarea class="form-control cmd-list" oninput="updateCmds('${caseId}', '${pId}', this.value)">${prize.give_commands.join('\n')}</textarea>
-                    </div>
-                </div>
-            `;
-            container.insertAdjacentHTML('beforeend', html);
-            updateStats(caseId);
-            if(shouldSave) saveToLocalStorage();
-        }
-
-        function updatePrize(caseId, pId, key, val) {
-            const p = cases[caseId].find(x => x._id === pId);
-            if(p) {
-                p[key] = (key === 'chance') ? parseFloat(val) : val;
-                if(key === 'chance') updateStats(caseId);
-                saveToLocalStorage();
-            }
-        }
-
-        function updateCmds(caseId, pId, val) {
-            const p = cases[caseId].find(x => x._id === pId);
-            if(p) {
-                p.give_commands = val.split('\n').map(c => c.trim()).filter(c => c);
-                saveToLocalStorage();
-            }
-        }
-
-        function removeCase(id) {
-            if(!confirm('Удалить кейс?')) return;
-            delete cases[id];
-            document.querySelector(`[data-case="${id}"]`).remove();
-            saveToLocalStorage();
-        }
-
-        function removePrize(caseId, pId) {
-            cases[caseId] = cases[caseId].filter(x => x._id !== pId);
-            document.querySelector(`[data-prize="${pId}"]`).remove();
-            updateStats(caseId);
-            saveToLocalStorage();
-        }
-
-        function updateStats(caseId) {
-            const total = cases[caseId].reduce((s, p) => s + (p.chance || 0), 0);
-            document.getElementById(`stats-${caseId}`).innerHTML = `Сумма шансов: <b>${total.toFixed(2)}%</b>`;
-        }
-
-        function collectData() {
-            const out = { prizes: {} };
-            for (let name in cases) {
-                out.prizes[name] = cases[name].map(p => {
-                    const { _id, ...clean } = p;
-                    return clean;
-                });
-            }
-            return out;
-        }
-
-        function showPreview() {
-            const yaml = jsyaml.dump(collectData(), { indent: 2, lineWidth: -1 });
-            document.getElementById('yaml-preview').textContent = yaml;
-            new bootstrap.Modal('#preview-modal').show();
-        }
-
-        function downloadYaml() {
-            const yaml = jsyaml.dump(collectData(), { indent: 2, lineWidth: -1 });
-            const blob = new Blob([yaml], { type: 'text/yaml' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = 'prizes.yml';
-            a.click();
-        }
-
-        function loadYaml(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const parsed = jsyaml.load(e.target.result);
-                    renderAll(parsed);
-                    saveToLocalStorage();
-                } catch(err) { alert("Ошибка файла!"); }
-            };
-            reader.readAsText(file);
-        }
-
-        function clearAllData() {
-            if(confirm('Это удалит ВСЕ данные из браузера. Уверены?')) {
-                localStorage.removeItem(STORAGE_KEY);
-                location.reload();
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', loadFromLocalStorage);
-    </script>
+    init();
+  })();
+</script>
+<!-- Bootstrap JS (для модалки) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
-
