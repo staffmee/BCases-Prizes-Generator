@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BCases · Генератор prizes.yml</title>
+  <title>BCases · Редактор prizes.yml</title>
   <!-- Bootstrap 5.3 + Icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <!-- Font Awesome 6.5 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <!-- js-yaml 4.1 -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
   <style>
     body { background: #f4f6f9; font-family: 'Segoe UI', system-ui, sans-serif; }
     .card-case { border-left: 5px solid #0d6efd; box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.05); transition: 0.2s; }
@@ -44,12 +44,12 @@
     </div>
   </div>
 
-  <!-- Кнопка добавить кейс -->
+  <!-- Кнопка добавить набор (кейс) -->
   <div class="mb-4">
-    <button class="btn btn-primary" id="addCaseBtn"><i class="fas fa-plus-circle me-1"></i>Добавить кейс</button>
+    <button class="btn btn-primary" id="addCaseBtn"><i class="fas fa-plus-circle me-1"></i>Добавить набор призов</button>
   </div>
 
-  <!-- Контейнер для всех кейсов -->
+  <!-- Контейнер для всех наборов (кейсов) -->
   <div id="casesContainer"></div>
 </div>
 
@@ -127,37 +127,34 @@
 <script>
   (function() {
     // --- глобальные переменные ---
-    let caseCounter = 1;            // для генерации уникальных ID
+    let modalInstance = null;
     const casesContainer = document.getElementById('casesContainer');
     const template = document.getElementById('prize-template').innerHTML;
-    let modalInstance = null;
 
-    // инициализация модалки Bootstrap
+    // Инициализация модалки Bootstrap
     document.addEventListener('DOMContentLoaded', function() {
       modalInstance = new bootstrap.Modal(document.getElementById('previewModal'));
     });
 
-    // --- вспомогательные функции: генерация ID, сбор данных, сохранение/загрузка localStorage ---
+    // --- вспомогательные функции ---
     function generateCaseId() { return `case-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`; }
     function generatePrizeId() { return `prize-${Date.now()}-${Math.random().toString(36).substr(2, 8)}`; }
 
-    // сохранить всё в localStorage
+    // Сохранить всё в localStorage
     function saveToLocalStorage() {
       try {
-        const data = collectCasesData();  // собираем UI данные
+        const data = collectCasesData();
         localStorage.setItem('bcases_prizes_ui', JSON.stringify(data));
       } catch (e) { console.warn('save error', e); }
     }
 
-    // восстановить из localStorage (вызывается при старте)
+    // Восстановить из localStorage
     function restoreFromLocalStorage() {
       const saved = localStorage.getItem('bcases_prizes_ui');
       if (!saved) return false;
       try {
         const casesData = JSON.parse(saved);
-        // очищаем контейнер
         casesContainer.innerHTML = '';
-        caseCounter = 1;
         casesData.forEach(c => {
           addCaseToUI(c.caseName, c.prizes);
         });
@@ -165,12 +162,11 @@
       } catch (e) { console.warn('restore error', e); return false; }
     }
 
-    // --- сбор данных из UI (для экспорта в YAML и сохранения) ---
+    // --- сбор данных из UI (массив наборов) ---
     function collectCasesData() {
       const caseCards = document.querySelectorAll('.case-card');
       const cases = [];
       for (let card of caseCards) {
-        const caseId = card.dataset.caseId;
         const caseNameInput = card.querySelector('.case-name-input');
         if (!caseNameInput) continue;
         const caseName = caseNameInput.value.trim() || 'unnamed';
@@ -180,7 +176,7 @@
       return cases;
     }
 
-    // сбор призов из контейнера (рекурсивно обрабатывает подпризы)
+    // сбор призов из контейнера (рекурсивно)
     function collectPrizesFromContainer(container) {
       const prizes = [];
       const prizeDivs = container.querySelectorAll(':scope > .prize-item');
@@ -191,7 +187,9 @@
         const displayName = pDiv.querySelector('.prize-name')?.value || '';
         const commands = pDiv.querySelector('.prize-commands')?.value.split('\n').filter(c => c.trim() !== '') || [];
 
-        const prize = { chance, enchanted, material, display_name: displayName, give_commands: commands };
+        const prize = { chance, enchanted, material, display_name: displayName };
+        if (commands.length) prize.give_commands = commands;
+
         // подпризы
         const subContainer = pDiv.querySelector('.subprizes-container');
         if (subContainer && subContainer.style.display !== 'none') {
@@ -203,8 +201,8 @@
       return prizes;
     }
 
-    // --- добавление нового кейса в UI (опционально с предзаполненными призами) ---
-    function addCaseToUI(caseName = 'Новый кейс', prizesData = []) {
+    // --- добавление нового набора (кейса) ---
+    function addCaseToUI(caseName = 'default', prizesData = []) {
       const caseId = generateCaseId();
       const caseDiv = document.createElement('div');
       caseDiv.className = 'card card-case mb-4 case-card';
@@ -212,7 +210,7 @@
       caseDiv.innerHTML = `
         <div class="card-header bg-white d-flex flex-wrap align-items-center justify-content-between gap-2">
           <div class="d-flex flex-wrap align-items-center gap-3">
-            <input type="text" class="form-control form-control-sm case-name-input" style="width: 220px;" value="${escapeHtml(caseName)}" placeholder="Имя кейса">
+            <input type="text" class="form-control form-control-sm case-name-input" style="width: 220px;" value="${escapeHtml(caseName)}" placeholder="Имя набора (ключ)">
             <span class="chance-sum-badge bg-light border" id="sum-${caseId}"><i class="fas fa-percent me-1"></i>сумма: 0.0</span>
           </div>
           <div class="d-flex gap-2">
@@ -226,24 +224,18 @@
       `;
       casesContainer.appendChild(caseDiv);
 
-      // добавить призы, если переданы
       const prizesContainer = caseDiv.querySelector('.prizes-container');
       if (prizesData && prizesData.length) {
         prizesData.forEach(p => addPrizeToContainer(prizesContainer, p));
       }
 
-      // пересчёт суммы шансов при изменении
-      const inputs = caseDiv.querySelectorAll('.prize-chance');
       updateChanceSum(caseId);
       caseDiv.addEventListener('input', (e) => {
         if (e.target.classList.contains('prize-chance')) updateChanceSum(caseId);
       });
-
-      // автосохранение после изменений
       caseDiv.addEventListener('input', () => saveToLocalStorage());
       caseDiv.addEventListener('change', () => saveToLocalStorage());
 
-      // кнопка добавить приз в этом кейсе
       caseDiv.querySelector('.add-prize-btn').addEventListener('click', (e) => {
         e.stopPropagation();
         addPrizeToContainer(prizesContainer, null);
@@ -251,18 +243,16 @@
         saveToLocalStorage();
       });
 
-      // удаление кейса
       caseDiv.querySelector('.delete-case').addEventListener('click', () => {
         caseDiv.remove();
         saveToLocalStorage();
       });
 
-      // переименование — сохраняем
       caseDiv.querySelector('.case-name-input').addEventListener('change', saveToLocalStorage);
       return caseDiv;
     }
 
-    // добавить приз в контейнер (prizesContainer) с рекурсивным заполнением если переданы данные
+    // добавить приз в контейнер
     function addPrizeToContainer(container, prizeData = null) {
       const prizeId = generatePrizeId();
       let html = template.replace(/{prizeId}/g, prizeId);
@@ -270,7 +260,6 @@
       tempDiv.innerHTML = html;
       const prizeDiv = tempDiv.firstElementChild;
 
-      // если есть prizeData — заполнить поля
       if (prizeData) {
         prizeDiv.querySelector('.prize-chance').value = prizeData.chance || 0;
         prizeDiv.querySelector('.prize-enchanted').checked = prizeData.enchanted || false;
@@ -279,27 +268,24 @@
         if (prizeData.give_commands && Array.isArray(prizeData.give_commands)) {
           prizeDiv.querySelector('.prize-commands').value = prizeData.give_commands.join('\n');
         }
-        // если есть подпризы (items) — добавляем их в скрытый контейнер, но показываем его
         if (prizeData.items && prizeData.items.length) {
           const subContainer = prizeDiv.querySelector('.subprizes-container');
-          subContainer.style.display = 'block';  // сделаем видимым сразу
+          subContainer.style.display = 'block';
+          prizeDiv.querySelector('.toggle-sub').innerHTML = '<i class="fas fa-layer-group"></i> скрыть';
           prizeData.items.forEach(sub => addPrizeToContainer(subContainer, sub));
         }
       }
 
       container.appendChild(prizeDiv);
 
-      // --- обработчики для приза ---
-      // кнопка удалить приз
+      // --- обработчики ---
       prizeDiv.querySelector('.delete-prize').addEventListener('click', () => {
         prizeDiv.remove();
-        // обновить сумму в родительском кейсе
         const caseCard = prizeDiv.closest('.case-card');
         if (caseCard) updateChanceSum(caseCard.dataset.caseId);
         saveToLocalStorage();
       });
 
-      // кнопка показать/скрыть подпризы
       const toggleBtn = prizeDiv.querySelector('.toggle-sub');
       const subContainer = prizeDiv.querySelector('.subprizes-container');
       toggleBtn.addEventListener('click', () => {
@@ -313,16 +299,13 @@
         saveToLocalStorage();
       });
 
-      // добавление команды через быстрый выбор
       const addCmdBtn = prizeDiv.querySelector('.add-cmd-btn');
       const cmdSelect = prizeDiv.querySelector('.cmd-select');
       const cmdArg = prizeDiv.querySelector('.cmd-arg');
       const cmdTextarea = prizeDiv.querySelector('.prize-commands');
       addCmdBtn.addEventListener('click', () => {
         let baseCmd = cmdSelect.value;
-        // если есть аргумент и в команде есть символ % (placeholder) — заменяем? обычно просто приклеиваем
         if (cmdArg.value.trim() !== '' && !baseCmd.includes('%player%')) {
-          // для GIVE и подобных используем аргумент как доп
           if (baseCmd.startsWith('[GIVE]')) {
             baseCmd = '[GIVE] ' + cmdArg.value.trim() + ' minecraft:stone 1';
           } else if (baseCmd.startsWith('[MESSAGE]')) {
@@ -333,13 +316,11 @@
         } else if (baseCmd.includes('%player%') && cmdArg.value.trim()) {
           baseCmd = baseCmd.replace('%player%', cmdArg.value.trim());
         }
-        // вставить в textarea (с новой строки)
         const current = cmdTextarea.value;
         cmdTextarea.value = current ? current + '\n' + baseCmd : baseCmd;
         saveToLocalStorage();
       });
 
-      // все изменения сохраняем
       prizeDiv.addEventListener('input', () => {
         const caseCard = prizeDiv.closest('.case-card');
         if (caseCard) updateChanceSum(caseCard.dataset.caseId);
@@ -347,10 +328,7 @@
       });
       prizeDiv.addEventListener('change', saveToLocalStorage);
 
-      // Для подпризов кнопка добавления: добавить приз в subContainer
-      // Но шаблон не содержит кнопку добавления внутри subprize. Добавим небольшую кнопку под контейнером (или используем внешнюю?)
-      // Удобнее: внутри блока приза, под контейнером вставить кнопку. Но в текущем template её нет. Добавим через JS при создании каждого приза?
-      // Создадим кнопку внутри subprizes-container как заглушку (при первом показе)
+      // кнопка добавления подприза
       if (!subContainer.querySelector('.add-subprize-btn')) {
         const addSubBtn = document.createElement('button');
         addSubBtn.className = 'btn btn-sm btn-outline-secondary mt-2 add-subprize-btn';
@@ -358,7 +336,6 @@
         subContainer.appendChild(addSubBtn);
         addSubBtn.addEventListener('click', () => {
           addPrizeToContainer(subContainer, null);
-          // обновить сумму выше? сумма подпризов не участвует в основной сумме, но мы обновим родительскую сумму шансов (она не меняется)
           const caseCard = prizeDiv.closest('.case-card');
           if (caseCard) updateChanceSum(caseCard.dataset.caseId);
           saveToLocalStorage();
@@ -366,7 +343,7 @@
       }
     }
 
-    // обновление суммы шансов для конкретного кейса
+    // обновление суммы шансов
     function updateChanceSum(caseId) {
       const caseCard = document.querySelector(`.case-card[data-case-id="${caseId}"]`);
       if (!caseCard) return;
@@ -376,7 +353,6 @@
       let total = 0;
       chanceInputs.forEach(inp => { total += parseFloat(inp.value) || 0; });
       sumSpan.innerHTML = `<i class="fas fa-percent me-1"></i>сумма: ${total.toFixed(2)}`;
-      // изменить класс в зависимости от 100 ± tiny
       if (Math.abs(total - 100) < 0.01) {
         sumSpan.className = 'chance-sum-badge stats-ok';
       } else {
@@ -384,7 +360,6 @@
       }
     }
 
-    // --- утилита экранирования ---
     function escapeHtml(unsafe) {
       return unsafe.replace(/[&<>"]/g, function(m) {
         if (m === '&') return '&amp;'; if (m === '<') return '&lt;'; if (m === '>') return '&gt;'; if (m === '"') return '&quot;';
@@ -392,43 +367,46 @@
       });
     }
 
-    // --- загрузка YAML и заполнение интерфейса ---
+    // --- загрузка YAML в правильном формате: prizes: { name: [prizes] } ---
     function loadYamlAndRender(content) {
       try {
         const parsed = jsyaml.load(content);
-        if (!parsed || typeof parsed !== 'object') throw new Error('Невалидный YAML (не объект)');
-        // ожидаем массив кейсов или объект с секциями? prizes.yml обычно массив? В задании — кейсы: предположим массив объектов с name и prizes.
-        // Но в UI мы храним как массив {caseName, prizes}. Допустим, YAML содержит список: - name: "case1" prizes: [ ...]
-        let casesArray = [];
-        if (Array.isArray(parsed)) {
-          casesArray = parsed;
+        if (!parsed || typeof parsed !== 'object') throw new Error('Невалидный YAML');
+
+        // Ожидаем структуру { prizes: { ... } } или сразу массив (для обратной совместимости)
+        let casesObj = null;
+        if (parsed.prizes && typeof parsed.prizes === 'object') {
+          casesObj = parsed.prizes; // формат из примера: prizes: { default: [ ... ] }
+        } else if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+          // возможно, сам объект — это наборы (например, если загружают сохранённый нами же вариант)
+          casesObj = parsed;
         } else {
-          // возможно это объект с ключами кейсов? Не усложняем, поддержим массив
-          throw new Error('Корневой элемент должен быть массивом кейсов');
+          throw new Error('Файл должен содержать объект prizes: { }');
         }
 
-        // очистить UI
         casesContainer.innerHTML = '';
-        caseCounter = 1;
-        casesArray.forEach(item => {
-          let caseName = item.name || item.caseName || 'Кейс';
-          let prizes = item.prizes || item.items || [];
-          addCaseToUI(caseName, prizes);
-        });
+        // Перебираем ключи объекта (default, rare, и т.д.)
+        for (let [caseName, prizesArray] of Object.entries(casesObj)) {
+          if (Array.isArray(prizesArray)) {
+            addCaseToUI(caseName, prizesArray);
+          } else {
+            console.warn(`Пропускаем ${caseName}: не массив`);
+          }
+        }
         saveToLocalStorage();
       } catch (e) {
         alert('Ошибка парсинга YAML: ' + e.message);
       }
     }
 
-    // --- предпросмотр YAML (модалка) ---
+    // --- предпросмотр YAML в нужном формате { prizes: { ... } } ---
     function showPreview() {
       const cases = collectCasesData();
-      // преобразуем в массив под формат prizes.yml (как в примере)
-      const yamlData = cases.map(c => ({
-        name: c.caseName,
-        prizes: c.prizes
-      }));
+      const prizesObject = {};
+      cases.forEach(c => {
+        prizesObject[c.caseName] = c.prizes;
+      });
+      const yamlData = { prizes: prizesObject };
       try {
         const yamlText = jsyaml.dump(yamlData, { indent: 2, lineWidth: -1 });
         document.getElementById('yamlPreview').textContent = yamlText || '— пусто —';
@@ -440,25 +418,30 @@
 
     // --- инициализация ---
     function init() {
-      // пробуем восстановить из localStorage
       const restored = restoreFromLocalStorage();
       if (!restored) {
-        // создать один демо-кейс по умолчанию
-        addCaseToUI('Пример кейса', [
-          { chance: 50, enchanted: true, material: 'diamond', display_name: '&bАлмаз', give_commands: ['[MESSAGE] &aВы выиграли алмаз!', '[CONSOLE] say Игрок %player% получил алмаз'] },
-          { chance: 50, enchanted: false, material: 'stone', display_name: 'Булыжник', give_commands: ['[GIVE] %player% minecraft:cobblestone 64'] }
+        // Создать демо-набор по образцу из задания
+        addCaseToUI('default', [
+          { chance: 100.0, enchanted: false, material: 'stone', display_name: '&7Камень', give_commands: ['[MESSAGE] &r', '[MESSAGE] &7Обычный кейс', '[MESSAGE] &fВыигрыш: &7Камень', '[MESSAGE] &r', '[CONSOLE] minecraft:give %player_name% stone'] },
+          { chance: 50, enchanted: false, material: 'netherite_scrap', display_name: '&6Незеритовый лом', give_commands: ['[MESSAGE] &r', '[MESSAGE] &7Обычный кейс', '[MESSAGE] &fВыигрыш: &6Незеритовый лом', '[MESSAGE] &r', '[CONSOLE] minecraft:give %player_name% netherite_scrap'] },
+          { chance: 30, items: [
+            { chance: 75, enchanted: false, material: 'diamond_pickaxe', display_name: '&bАлмазная кирка', give_commands: ['[MESSAGE] &r', '[MESSAGE] &7Обычный кейс', '[MESSAGE] &fВыигрыш: &bАлмазная кирка', '[MESSAGE] &r', '[CONSOLE] minecraft:give %player_name% diamond_pickaxe'] },
+            { chance: 20, enchanted: true, material: 'diamond_pickaxe', display_name: '&dАлмазная кирка &7[эф5]', give_commands: ['[MESSAGE] &r', '[MESSAGE] &7Обычный кейс', '[MESSAGE] &fВыигрыш: &dАлмазная кирка &7[эф5]', '[MESSAGE] &r', '[CONSOLE] minecraft:give %player_name% minecraft:diamond_pickaxe{Enchantments:[{id:"minecraft:efficiency",lvl:5}]}'] },
+            { chance: 5, enchanted: true, material: 'diamond_pickaxe', display_name: '&dАлмазная кирка &7[эф10]', give_commands: ['[MESSAGE] &r', '[MESSAGE] &7Обычный кейс', '[MESSAGE] &fВыигрыш: &dАлмазная кирка &7[эф10]', '[MESSAGE] &r', '[CONSOLE] minecraft:give %player_name% minecraft:diamond_pickaxe{Enchantments:[{id:"minecraft:efficiency",lvl:10}]}'] }
+          ]}
         ]);
       }
 
-      // --- обработчики кнопок ---
       document.getElementById('addCaseBtn').addEventListener('click', () => {
-        addCaseToUI('Новый кейс', []);
+        addCaseToUI('new_set', []);
         saveToLocalStorage();
       });
 
       document.getElementById('downloadBtn').addEventListener('click', () => {
         const cases = collectCasesData();
-        const yamlData = cases.map(c => ({ name: c.caseName, prizes: c.prizes }));
+        const prizesObject = {};
+        cases.forEach(c => { prizesObject[c.caseName] = c.prizes; });
+        const yamlData = { prizes: prizesObject };
         try {
           const yamlStr = jsyaml.dump(yamlData, { indent: 2, lineWidth: -1 });
           const blob = new Blob([yamlStr], { type: 'text/yaml' });
@@ -483,7 +466,7 @@
           loadYamlAndRender(ev.target.result);
         };
         reader.readAsText(file);
-        e.target.value = ''; // сброс
+        e.target.value = '';
       });
 
       document.getElementById('copyYamlBtn').addEventListener('click', () => {
@@ -491,7 +474,6 @@
         navigator.clipboard?.writeText(text).then(() => alert('Скопировано!')).catch(() => alert('Не удалось скопировать'));
       });
 
-      // глобальное автосохранение по событиям (подстраховка)
       document.addEventListener('input', saveToLocalStorage);
       document.addEventListener('change', saveToLocalStorage);
     }
