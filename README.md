@@ -25,7 +25,7 @@
 2. Открой в любом современном браузере
 3. Начинай создавать свои кейсы!
 
-Или используй онлайн версию на [GitHub Pages](https://твой-ник.github.io/bcases-generator)
+Или используй онлайн версию на [GitHub Pages]([https://staffmee.github.io/BCases-Prizes-Generator/])
 
 ## 🎮 Интерфейс
 
