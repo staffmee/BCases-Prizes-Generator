@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BCases Prizes Generator by @staffmee</title>
+    <title>BCases Prizes Generator</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
@@ -23,7 +23,7 @@
     <div class="container my-5">
         <div class="text-center mb-5">
             <h1><i class="fas fa-gift me-3 text-primary"></i>BCases Prizes Generator</h1>
-            <p class="text-muted lead">Создание и редактирование prizes.yml с поддержкой загрузки существующего файла by @staffmee</p>
+            <p class="text-muted lead">Создание и редактирование prizes.yml с поддержкой загрузки существующего файла @staffmee</p>
         </div>
 
         <div class="d-flex flex-wrap gap-3 justify-content-center mb-4">
@@ -77,6 +77,7 @@
     <script>
         let cases = {}; // {caseId: [prizes]}
         let nextCaseId = 1;
+        const STORAGE_KEY = 'bcases_generator_data';
 
         const cmdPlaceholders = {
             '[MESSAGE]': '&fВы выиграли: &bАлмаз!',
@@ -89,10 +90,10 @@
             '[TAKE_KEY]': 'default'
         };
 
-        function addCase(caseName = null) {
+        function addCase(caseName = null, internalId = null) {
             const container = document.getElementById('cases-container');
-            const caseId = `case_${nextCaseId++}`;
-            cases[caseId] = [];
+            const caseId = internalId || `case_${nextCaseId++}`;
+            cases[caseId] = cases[caseId] || [];
 
             const displayName = caseName || caseId;
             const caseHtml = `
@@ -123,20 +124,25 @@
             const newId = newIdRaw.trim();
             if (!newId || cases[newId]) {
                 alert('Такой ID кейса уже существует или пустой!');
-                document.getElementById(`case-name-${oldId}`).value = oldId;
+                const oldInput = document.getElementById(`case-name-${oldId}`);
+                if (oldInput) oldInput.value = oldId;
                 return;
             }
             cases[newId] = cases[oldId];
             delete cases[oldId];
             const section = document.querySelector(`[data-case="${oldId}"]`);
-            section.dataset.case = newId;
+            if (section) section.dataset.case = newId;
             const prizesEl = document.getElementById(`prizes-${oldId}`);
             if (prizesEl) prizesEl.id = `prizes-${newId}`;
             const statsEl = document.getElementById(`stats-${oldId}`);
             if (statsEl) statsEl.id = `stats-${newId}`;
             const nameInput = document.getElementById(`case-name-${oldId}`);
-            if (nameInput) nameInput.id = `case-name-${newId}`;
+            if (nameInput) {
+                nameInput.id = `case-name-${newId}`;
+                nameInput.value = newId;  // Обновляем значение инпута
+            }
             updateStats(newId);
+            saveToStorage();  // Сохраняем изменения
         }
 
         function removeCase(caseId) {
@@ -144,10 +150,12 @@
             delete cases[caseId];
             const section = document.querySelector(`[data-case="${caseId}"]`);
             if (section) section.remove();
+            saveToStorage();
         }
 
         function addPrize(caseId, prizeData = {}) {
             const prizesContainer = document.getElementById(`prizes-${caseId}`);
+            if (!prizesContainer) return;
             const prizeId = `prize_${Date.now()}_${Math.random().toString(36).slice(2,10)}`;
             const prize = {
                 _id: prizeId,
@@ -230,7 +238,6 @@
             `;
             prizesContainer.insertAdjacentHTML('beforeend', prizeHtml);
 
-            // Восстанавливаем подпризы, если есть
             if (prize.items.length > 0) {
                 const subContainer = document.getElementById(`subprizes-${prizeId}`);
                 if (subContainer) subContainer.style.display = 'block';
@@ -243,10 +250,11 @@
             const selectEl = document.getElementById(`cmd-select-${prizeId}`);
             if (selectEl) selectEl.addEventListener('change', () => updatePlaceholder(prizeId));
             updateStats(caseId);
+            saveToStorage();
         }
 
         function addSubprize(caseId, prizeId, subData = {}) {
-            const parent = cases[caseId].find(p => p._id === prizeId);
+            const parent = cases[caseId]?.find(p => p._id === prizeId);
             if (!parent) return;
             const index = parent.items.length;
             const subId = `sub_${prizeId}_${index}`;
@@ -297,6 +305,7 @@
             `;
             container.insertAdjacentHTML('beforeend', subHtml);
             updateStats(caseId);
+            saveToStorage();
         }
 
         function updatePrize(caseId, prizeId, key, value) {
@@ -306,11 +315,13 @@
             if (key === 'enchanted') value = !!value;
             prize[key] = value;
             updateStats(caseId);
+            saveToStorage();
         }
 
         function updateCommands(caseId, prizeId, value) {
             const prize = cases[caseId]?.find(p => p._id === prizeId);
             if (prize) prize.give_commands = value.split('\n').map(c => c.trim()).filter(Boolean);
+            saveToStorage();
         }
 
         function updateSubprize(caseId, prizeId, subId, key, value) {
@@ -322,6 +333,7 @@
             if (key === 'enchanted') value = !!value;
             sub[key] = value;
             updateStats(caseId);
+            saveToStorage();
         }
 
         function updateSubCommands(caseId, prizeId, subId, value) {
@@ -329,6 +341,7 @@
             if (!parent) return;
             const sub = parent.items.find(s => s._id === subId);
             if (sub) sub.give_commands = value.split('\n').map(c => c.trim()).filter(Boolean);
+            saveToStorage();
         }
 
         function insertCommand(caseId, prizeId) {
@@ -344,6 +357,7 @@
             }
             const argInput = document.getElementById(`cmd-arg-${prizeId}`);
             if (argInput) argInput.value = '';
+            saveToStorage();
         }
 
         function updatePlaceholder(prizeId) {
@@ -363,6 +377,7 @@
             btn.innerHTML = show 
                 ? '<i class="fas fa-minus me-1"></i>Скрыть подпризы' 
                 : '<i class="fas fa-layer-group me-1"></i>Подпризы (items)';
+            saveToStorage();
         }
 
         function removePrize(caseId, prizeId) {
@@ -371,6 +386,7 @@
             const prizeEl = document.querySelector(`[data-prize="${prizeId}"]`);
             if (prizeEl) prizeEl.remove();
             updateStats(caseId);
+            saveToStorage();
         }
 
         function removeSubprize(caseId, prizeId, subId) {
@@ -379,6 +395,7 @@
             const subEl = document.querySelector(`[data-subprize="${subId}"]`);
             if (subEl) subEl.remove();
             updateStats(caseId);
+            saveToStorage();
         }
 
         function updateStats(caseId) {
@@ -468,13 +485,14 @@
                     nextCaseId = 1;
 
                     Object.entries(parsed.prizes).forEach(([caseName, prizesList]) => {
-                        const caseId = addCase(caseName);
+                        const caseId = addCase(caseName, caseName);  // Используем caseName как internalId для уникальности
                         prizesList.forEach(prizeData => {
                             addPrize(caseId, prizeData);
                         });
                     });
 
                     alert('Конфиг успешно загружен! Теперь можно редактировать и скачать.');
+                    saveToStorage();
                 } catch (err) {
                     alert('Ошибка загрузки YAML:\n' + err.message + '\n\nПроверьте файл на валидность.');
                 }
@@ -482,12 +500,42 @@
             reader.readAsText(file);
         }
 
+        // === СОХРАНЕНИЕ В LOCALSTORAGE ===
+        function saveToStorage() {
+            const state = {
+                cases: cases,
+                nextCaseId: nextCaseId
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        }
+
+        function loadFromStorage() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (!saved) return;
+            try {
+                const state = JSON.parse(saved);
+                cases = state.cases || {};
+                nextCaseId = state.nextCaseId || 1;
+
+                // Восстанавливаем UI
+                document.getElementById('cases-container').innerHTML = '';
+                Object.keys(cases).forEach(caseId => {
+                    addCase(caseId, caseId);  // Добавляем с сохраненным ID
+                    cases[caseId].forEach(prize => addPrize(caseId, prize));
+                });
+            } catch (e) {
+                console.error('Ошибка загрузки из storage:', e);
+                localStorage.removeItem(STORAGE_KEY);  // Очищаем, если ошибка
+            }
+        }
+
         // Инициализация
         document.addEventListener('DOMContentLoaded', () => {
-            addCase('default'); // стартовый кейс
+            loadFromStorage();
+            if (Object.keys(cases).length === 0) {
+                addCase('default');
+            }
         });
     </script>
 </body>
 </html>
-
-
