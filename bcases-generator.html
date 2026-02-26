@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Генератор prizes.yml для BCases (Улучшенный)</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+    <style>
+        body { background-color: #f8f9fa; }
+        .case-section { border: 1px solid #dee2e6; border-radius: 10px; margin-bottom: 20px; padding: 20px; background: white; }
+        .prize-item { border: 1px solid #e9ecef; border-radius: 8px; margin-bottom: 10px; padding: 15px; background: #f8f9fa; }
+        .subprize-item { margin-left: 20px; border-left: 3px solid #007bff; background: #e3f2fd; }
+        .cmd-list { min-height: 100px; font-family: monospace; font-size: 0.9em; }
+        .preview { background: #2d3748; color: #e2e8f0; padding: 20px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
+        .stats { background: #d4edda; padding: 10px; border-radius: 5px; margin-top: 10px; }
+        .invalid { border-color: #dc3545 !important; }
+        .subprizes-section { background: #f0f8ff; border-radius: 8px; padding: 15px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container my-5">
+        <div class="row">
+            <div class="col-12">
+                <h1 class="text-center mb-4"><i class="fas fa-cube me-3"></i>Генератор prizes.yml для BCases</h1>
+                <p class="text-center text-muted mb-5">Улучшенный: быстрый выбор команд, подпризы, валидация, автокомплит. Команды сохраняются!</p>
+                
+                <div id="cases-container">
+                    <!-- Динамически -->
+                </div>
+                
+                <div class="text-center mb-4">
+                    <button class="btn btn-primary btn-lg" onclick="addCase()">
+                        <i class="fas fa-plus me-2"></i>Добавить кейс
+                    </button>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <button class="btn btn-success btn-lg w-100" onclick="generateYaml()">
+                            <i class="fas fa-download me-2"></i>Скачать prizes.yml
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <button class="btn btn-info btn-lg w-100" onclick="showPreview()">
+                            <i class="fas fa-eye me-2"></i>Предпросмотр
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="preview-modal" class="modal fade" tabindex="-1">
+                    <div class="modal-dialog modal-xl">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Предпросмотр prizes.yml</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div id="yaml-preview" class="preview"></div>
+                            </div>
+                            <div class="modal-footer">
+                                <button class="btn btn-success" onclick="downloadYaml()">Скачать</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <datalist id="materials-list">
+        <option value="stone">
+        <option value="cobblestone">
+        <option value="dirt">
+        <option value="oak_planks">
+        <option value="oak_log">
+        <option value="iron_ingot">
+        <option value="gold_ingot">
+        <option value="diamond">
+        <option value="emerald">
+        <option value="netherite_ingot">
+        <option value="iron_sword">
+        <option value="diamond_sword">
+        <option value="netherite_sword">
+        <option value="iron_pickaxe">
+        <option value="diamond_pickaxe">
+        <option value="netherite_pickaxe">
+        <option value="iron_axe">
+        <option value="diamond_axe">
+        <option value="netherite_axe">
+        <option value="iron_helmet">
+        <option value="diamond_helmet">
+        <option value="netherite_helmet">
+        <option value="chest">
+        <option value="ender_chest">
+        <option value="experience_bottle">
+        <option value="totem_of_undying">
+        <option value="elytra">
+        <option value="nether_star">
+        <option value="beacon">
+        <option value="enchanted_book">
+        <option value="book">
+        <option value="shulker_box">
+    </datalist>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let cases = {};
+        let nextCaseId = 1;
+
+        const cmdPlaceholders = {
+            '[MESSAGE]': '&fВы выиграли: &bАлмаз!',
+            '[BROADCAST]': '&6%player_name% &eвыиграл &bАлмаз!',
+            '[CONSOLE]': 'minecraft:give %player_name% diamond 1',
+            '[GIVE]': 'minecraft:diamond_sword{Enchantments:[{id:"minecraft:sharpness",lvl:5}]} 1',
+            '[TITLE]': '"&6Победа!\\n&bПриз получен" 10 70 20',
+            '[ACTION_BAR]': '&a✓ Приз выдан!',
+            '[PLAY]': '$random default',
+            '[TAKE_KEY]': 'default'
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            addCase();
+        });
+
+        function addCase() {
+            const container = document.getElementById('cases-container');
+            const caseId = `case_${nextCaseId++}`;
+            cases[caseId] = [];
+            
+            const caseHtml = `
+                <div class="case-section" data-case="${caseId}">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3><i class="fas fa-box me-2"></i>Кейс: <input type="text" class="form-control d-inline-block w-auto ms-2" id="case-name-${caseId}" placeholder="default" value="${caseId}" onchange="updateCaseId('${caseId}', this.value)"></h3>
+                        <button class="btn btn-sm btn-outline-danger" onclick="removeCase('${caseId}')"><i class="fas fa-trash"></i></button>
+                    </div>
+                    <div id="prizes-${caseId}"></div>
+                    <button class="btn btn-outline-primary" onclick="addPrize('${caseId}')">
+                        <i class="fas fa-plus me-1"></i>Добавить приз
+                    </button>
+                    <div class="stats" id="stats-${caseId}"></div>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', caseHtml);
+            updateStats(caseId);
+        }
+
+        function updateCaseId(oldId, newId) {
+            if (cases[newId]) {
+                alert('ID кейса уже существует!');
+                document.getElementById(`case-name-${oldId}`).value = oldId;
+                return;
+            }
+            cases[newId] = cases[oldId];
+            delete cases[oldId];
+            const section = document.querySelector(`[data-case="${oldId}"]`);
+            section.dataset.case = newId;
+            document.getElementById(`prizes-${oldId}`).id = `prizes-${newId}`;
+            document.getElementById(`stats-${oldId}`).id = `stats-${newId}`;
+            document.getElementById(`case-name-${oldId}`).id = `case-name-${newId}`;
+            updateStats(newId);
+        }
+
+        function removeCase(caseId) {
+            if (confirm('Удалить этот кейс и все призы?')) {
+                delete cases[caseId];
+                document.querySelector(`[data-case="${caseId}"]`).remove();
+                updateAllStats();
+            }
+        }
+
+        function addPrize(caseId) {
+            const prizesContainer = document.getElementById(`prizes-${caseId}`);
+            const prizeId = `prize_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`; // unique
+            cases[caseId].push({ _id: prizeId });
+            
+            const prizeHtml = `
+                <div class="prize-item" data-prize="${prizeId}">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h5><i class="fas fa-gift me-2 text-success"></i>Приз</h5>
+                        <button class="btn btn-sm btn-outline-danger" onclick="removePrize('${caseId}', '${prizeId}')"><i class="fas fa-trash"></i></button>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <label class="form-label">Шанс</label>
+                            <input type="number" class="form-control" min="0.1" step="0.1" value="100" oninput="updatePrize('${caseId}', '${prizeId}', 'chance', this.value)">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Зачаровать</label>
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" oninput="updatePrize('${caseId}', '${prizeId}', 'enchanted', this.checked)">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Материал</label>
+                            <input type="text" class="form-control" list="materials-list" placeholder="stone" oninput="updatePrize('${caseId}', '${prizeId}', 'material', this.value)">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Display name</label>
+                            <input type="text" class="form-control" placeholder="&7Приз" value="&7Приз" oninput="updatePrize('${caseId}', '${prizeId}', 'display_name', this.value)">
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="form-label">Команды (give_commands)</label>
+                        <textarea class="form-control cmd-list" placeholder="[MESSAGE] &fВыигрыш: &bАлмаз&#10;[CONSOLE] minecraft:give %player_name% diamond&#10;[TAKE_KEY] default" oninput="updateCommands('${caseId}', '${prizeId}', this.value)"></textarea>
+                        <small class="text-muted">По одной команде на строку. %player_name% — имя игрока.</small>
+                    </div>
+                    <div class="row g-2 mt-2">
+                        <div class="col-4">
+                            <select class="form-select form-select-sm" id="cmd-select-${prizeId}">
+                                <option value="[MESSAGE]">[MESSAGE]</option>
+                                <option value="[BROADCAST]">[BROADCAST]</option>
+                                <option value="[CONSOLE]">[CONSOLE]</option>
+                                <option value="[GIVE]">[GIVE] (NBT/base64)</option>
+                                <option value="[TITLE]">[TITLE]</option>
+                                <option value="[ACTION_BAR]">[ACTION_BAR]</option>
+                                <option value="[PLAY]">[PLAY]</option>
+                                <option value="[TAKE_KEY]">[TAKE_KEY]</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <input type="text" class="form-control form-control-sm" id="cmd-arg-${prizeId}" placeholder="&fТекст">
+                        </div>
+                        <div class="col-2">
+                            <button class="btn btn-sm btn-primary w-100" onclick="insertCommand('${caseId}', '${prizeId}')">Добавить</button>
+                        </div>
+                    </div>
+                    <small class="text-muted d-block mt-1">Подсказки: [CONSOLE] — команды плагинов, [PLAY] — анимация prizes, [GIVE] — /bcases dump для NBT.</small>
+                    <button class="btn btn-outline-info mt-3 w-100" onclick="toggleSubprizes('${caseId}', '${prizeId}')">
+                        <i class="fas fa-layer-group me-1"></i><span id="subprize-btn-${prizeId}">Добавить подпризы (items)</span>
+                    </button>
+                    <div class="subprizes-section" id="subprizes-${prizeId}" style="display:none;">
+                        <button class="btn btn-sm btn-outline-primary mb-2" onclick="addSubprize('${caseId}', '${prizeId}')">
+                            <i class="fas fa-plus me-1"></i>Добавить подприз
+                        </button>
+                        <div id="subprizes-container-${prizeId}"></div>
+                    </div>
+                </div>
+            `;
+            prizesContainer.insertAdjacentHTML('beforeend', prizeHtml);
+            updatePlaceholder(prizeId);
+            prizesContainer.querySelector(`#cmd-select-${prizeId}`).addEventListener('change', () => updatePlaceholder(prizeId));
+            updateStats(caseId);
+        }
+
+        function removePrize(caseId, prizeId) {
+            cases[caseId] = cases[caseId].filter(p => p._id !== prizeId);
+            document.querySelector(`[data-prize="${prizeId}"]`).remove();
+            updateStats(caseId);
+        }
+
+        function updatePrize(caseId, prizeId, key, value) {
+            const prize = cases[caseId].find(p => p._id === prizeId);
+            if (!prize) return;
+            if (key === 'chance') value = parseFloat(value) || 100;
+            else if (key === 'enchanted') value = !!value;
+            prize[key] = value;
+            updateStats(caseId);
+        }
+
+        function updateCommands(caseId, prizeId, value) {
+            const prize = cases[caseId].find(p => p._id === prizeId);
+            if (!prize) return;
+            prize.give_commands = value.split('\n').map(c => c.trim()).filter(Boolean);
+        }
+
+        function insertCommand(caseId, prizeId) {
+            const select = document.getElementById(`cmd-select-${prizeId}`);
+            const argInput = document.getElementById(`cmd-arg-${prizeId}`);
+            let cmd = select.value;
+            if (argInput.value.trim()) cmd += ' ' + argInput.value.trim();
+            const textarea = document.querySelector(`[data-prize="${prizeId}"] textarea`);
+            textarea.value += '\n' + cmd;
+            textarea.scrollTop = textarea.scrollHeight;
+            updateCommands(caseId, prizeId, textarea.value);
+            argInput.value = '';
+        }
+
+        function updatePlaceholder(prizeId) {
+            const select = document.getElementById(`cmd-select-${prizeId}`);
+            const input = document.getElementById(`cmd-arg-${prizeId}`);
+            input.placeholder = cmdPlaceholders[select.value] || 'аргументы / текст';
+        }
+
+        function toggleSubprizes(caseId, prizeId) {
+            const container = document.getElementById(`subprizes-${prizeId}`);
+            const btn = document.getElementById(`subprize-btn-${prizeId}`);
+            const isHidden = container.style.display === 'none';
+            container.style.display = isHidden ? 'block' : 'none';
+            btn.innerHTML = isHidden ? '<i class="fas fa-minus me-1"></i>Скрыть подпризы' : '<i class="fas fa-layer-group me-1"></i>Добавить подпризы (items)';
+        }
+
+        function addSubprize(caseId, prizeId) {
+            const parentPrize = cases[caseId].find(p => p._id === prizeId);
+            if (!parentPrize.items) parentPrize.items = [];
+            const index = parentPrize.items.length;
+            const subPrizeId = `sub_${prizeId}_${index}`;
+            parentPrize.items.push({ _id: subPrizeId });
+            
+            const subContainer = document.getElementById(`subprizes-container-${prizeId}`);
+            const subHtml = `
+                <div class="prize-item subprize-item p-3 mb-2" data-subprize="${subPrizeId}">
+                    <div class="d-flex justify-content-between mb-2">
+                        <small class="fw-bold text-info"><i class="fas fa-gift me-1"></i>Подприз</small>
+                        <button class="btn btn-sm btn-outline-danger" onclick="removeSubprize('${caseId}', '${prizeId}', '${subPrizeId}')"><i class="fas fa-trash"></i></button>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-3">
+                            <input type="number" class="form-control form-control-sm" min="0.1" step="0.1" value="50" oninput="updateSubprize('${caseId}', '${prizeId}', '${subPrizeId}', 'chance', this.value)">
+                        </div>
+                        <div class="col-3">
+                            <div class="form-check form-check-sm mt-1">
+                                <input class="form-check-input" type="checkbox" oninput="updateSubprize('${caseId}', '${prizeId}', '${subPrizeId}', 'enchanted', this.checked)">
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <input type="text" class="form-control form-control-sm" list="materials-list" placeholder="diamond" oninput="updateSubprize('${caseId}', '${prizeId}', '${subPrizeId}', 'material', this.value)">
+                        </div>
+                        <div class="col-3">
+                            <input type="text" class="form-control form-control-sm" placeholder="&bПодприз" oninput="updateSubprize('${caseId}', '${prizeId}', '${subPrizeId}', 'display_name', this.value)">
+                        </div>
+                    </div>
+                    <textarea class="form-control form-control-sm mt-2 cmd-list" placeholder="[CONSOLE] give diamond&#10;[MESSAGE] &fПодприз!" rows="3" oninput="updateSubCommands('${caseId}', '${prizeId}', '${subPrizeId}', this.value)"></textarea>
+                </div>
+            `;
+            subContainer.insertAdjacentHTML('beforeend', subHtml);
+            updateStats(caseId);
+        }
+
+        function updateSubprize(caseId, prizeId, subId, key, value) {
+            const parent = cases[caseId].find(p => p._id === prizeId);
+            const sub = parent.items.find(s => s._id === subId);
+            if (!sub) return;
+            if (key === 'chance') value = parseFloat(value) || 50;
+            else if (key === 'enchanted') value = !!value;
+            sub[key] = value;
+            updateStats(caseId);
+        }
+
+        function updateSubCommands(caseId, prizeId, subId, value) {
+            const parent = cases[caseId].find(p => p._id === prizeId);
+            const sub = parent.items.find(s => s._id === subId);
+            if (!sub) return;
+            sub.give_commands = value.split('\n').map(c => c.trim()).filter(Boolean);
+        }
+
+        function removeSubprize(caseId, prizeId, subId) {
+            const parent = cases[caseId].find(p => p._id === prizeId);
+            parent.items = parent.items.filter(s => s._id !== subId);
+            document.querySelector(`[data-subprize="${subId}"]`).remove();
+            updateStats(caseId);
+        }
+
+        function updateStats(caseId) {
+            const totalChance = cases[caseId].reduce((sum, p) => sum + (parseFloat(p.chance) || 0), 0);
+            const statsEl = document.getElementById(`stats-${caseId}`);
+            statsEl.innerHTML = `<strong>Сумма шансов: ${totalChance.toFixed(1)}</strong> <small class="text-success">(выше шанс — чаще выпадет)</small>`;
+        }
+
+        function updateAllStats() {
+            Object.keys(cases).forEach(updateStats);
+        }
+
+        function collectData() {
+            const data = { prizes: {} };
+            Object.keys(cases).forEach(caseId => {
+                const nameEl = document.getElementById(`case-name-${caseId}`);
+                const name = nameEl ? nameEl.value.trim() || caseId : caseId;
+                data.prizes[name] = cases[caseId].map(p => {
+                    const clean = {
+                        chance: parseFloat(p.chance) || 100,
+                        enchanted: !!p.enchanted,
+                        material: p.material || 'stone',
+                        display_name: p.display_name || '&7Приз',
+                        give_commands: p.give_commands || []
+                    };
+                    if (p.items && p.items.length) {
+                        clean.items = p.items.map(s => ({
+                            chance: parseFloat(s.chance) || 50,
+                            enchanted: !!s.enchanted,
+                            material: s.material || 'diamond',
+                            display_name: s.display_name || '&bПодприз',
+                            give_commands: s.give_commands || []
+                        }));
+                    }
+                    return clean;
+                });
+            });
+            return data;
+        }
+
+        function showPreview() {
+            const data = collectData();
+            const yamlStr = jsyaml.dump(data, { indent: 2, lineWidth: -1 });
+            document.getElementById('yaml-preview').textContent = yamlStr;
+            new bootstrap.Modal(document.getElementById('preview-modal')).show();
+        }
+
+        function generateYaml() {
+            showPreview();
+        }
+
+        function downloadYaml() {
+            const data = collectData();
+            const yamlStr = jsyaml.dump(data, { indent: 2, lineWidth: -1 });
+            const blob = new Blob([yamlStr], { type: 'text/yaml;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'prizes.yml';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
